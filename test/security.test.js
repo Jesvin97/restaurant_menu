@@ -419,3 +419,11 @@ test('serverless entry: start-up failures become readable responses, not opaque 
     } finally { config.missingEnv.pop(); }
   } finally { console.error = origError; }
 });
+
+test('hosting config: only public/ is published statically, and it holds no app code', () => {
+  const dir = path.join(__dirname, '..', 'public');
+  const files = fs.readdirSync(dir);
+  assert.deepEqual(files, ['robots.txt']);                // Vercel serves public/ as-is, with none of our security headers
+  const vercel = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8'));
+  assert.match(vercel.functions['api/index.js'].includeFiles, /web\/\*\*/);
+});
