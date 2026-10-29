@@ -1,5 +1,6 @@
 process.env.TABLE_COUNT = '4';
 process.env.ADMIN_PASSWORD = 'test-pass-123';
+process.env.STATE_FILE = require('path').join(require('os').tmpdir(), `sec-test-${process.pid}.json`);
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -426,4 +427,16 @@ test('hosting config: only public/ is published statically, and it holds no app 
   assert.deepEqual(files, ['robots.txt']);                // Vercel serves public/ as-is, with none of our security headers
   const vercel = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8'));
   assert.match(vercel.functions['api/index.js'].includeFiles, /web\/\*\*/);
+});
+
+test('src/server.js is itself a valid serverless handler (Vercel "node" preset picks this file)', async () => {
+  const mod = require('../src/server');
+  assert.equal(typeof mod, 'function');                         // "default export must be a function or server"
+  assert.equal(typeof mod.createServer, 'function');
+  const srv = require('http').createServer(mod).listen(0);
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/menu`);
+    assert.equal(r.status, 200);
+    assert.match(await r.text(), /categories/);
+  } finally { srv.close(); }
 });

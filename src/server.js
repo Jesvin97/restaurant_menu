@@ -318,4 +318,9 @@ if (require.main === module) {
     if (config.adminPasswordGenerated) console.warn(`No ADMIN_PASSWORD set. Temporary staff password for this run: ${config.adminPassword}`);
   });
 }
-module.exports = { createServer, limiter };
+// Vercel's "node" framework preset auto-detects src/server.js as the app and requires its default export
+// to be a request handler. Exporting one (with the factory functions attached) keeps that path working
+// even if the project settings pick this file instead of api/index.js.
+let autoHandler;
+const handler = (req, res) => (autoHandler ||= require('./vercel').makeHandler())(req, res);
+module.exports = Object.assign(handler, { createServer, limiter });
