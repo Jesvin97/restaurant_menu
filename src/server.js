@@ -233,6 +233,9 @@ function createServer(store = new Store(), opts = {}) {
 
   return http.createServer(async (req, res) => {
     try {
+      if (config.missingEnv.length) {
+        return send(res, 503, `Server is not configured yet. Set these environment variables in the hosting dashboard and redeploy: ${config.missingEnv.join(', ')}`);
+      }
       const url = new URL(req.url, 'http://x');
       const p = url.pathname;
       let m;

@@ -339,3 +339,14 @@ test('tax and totals: integer rupees, rounding half up, no float drift', () => {
   assert.deepEqual([b.subtotal, b.tax, b.total], [135, 7, 142]);
   assert.ok(Number.isInteger(b.tax));
 });
+
+test('an unwritable state path does not crash startup or requests', () => {
+  const origError = console.error; const logs = [];
+  console.error = (m) => logs.push(m);
+  try {
+    const s = new Store('/etc/hostname/data/state.json');        // parent is a file -> mkdir fails, like a read-only serverless disk
+    s.enter('1', 'A'); s.seat('1');
+    assert.ok(s.placeOrder('1', 'A', [{ id: 'idli-3-pcs', qty: 1 }]).ok);   // still works from memory
+    assert.equal(logs.filter((l) => /cannot save state/.test(l)).length, 1); // warned once, not per request
+  } finally { console.error = origError; }
+});

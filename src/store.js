@@ -18,8 +18,7 @@ class Store {
       } catch {
         // Never overwrite an unreadable state file: keep it aside so nothing is silently lost.
         const aside = `${file}.corrupt-${Date.now()}`;
-        fs.renameSync(file, aside);
-        console.error(`State file was unreadable; moved to ${aside} and starting fresh.`);
+        try { fs.renameSync(file, aside); console.error(`State file was unreadable; moved to ${aside} and starting fresh.`); } catch { console.error('State file was unreadable and could not be moved aside; starting fresh in memory.'); }
       }
     }
     if (!this.state.secret) this.state.secret = config.qrSecret || rid(16);
@@ -99,10 +98,16 @@ class Store {
 
   save() {
     if (!this.persist) return;
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.state), { mode: 0o600 }); // contains guest phone numbers
-    fs.renameSync(tmp, this.file);
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      const tmp = this.file + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(this.state), { mode: 0o600 }); // contains guest phone numbers
+      fs.renameSync(tmp, this.file);
+    } catch (e) {
+      // A read-only or full disk must not take the restaurant offline: keep serving from memory and say so once.
+      if (!this.warnedSave) console.error(`WARNING: cannot save state to ${this.file} (${e.code || e.message}); running in memory only.`);
+      this.warnedSave = true;
+    }
   }
 
   // ---- static table QR signature -------------------------------------
