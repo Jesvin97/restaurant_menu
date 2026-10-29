@@ -21,8 +21,16 @@ class Store {
         try { fs.renameSync(file, aside); console.error(`State file was unreadable; moved to ${aside} and starting fresh.`); } catch { console.error('State file was unreadable and could not be moved aside; starting fresh in memory.'); }
       }
     }
+    // Table QR codes are printed once, so their signing secret must never change silently.
+    this.secretFromEnv = Boolean(config.qrSecret);
     if (!this.state.secret) this.state.secret = config.qrSecret || rid(16);
     if (config.qrSecret) this.state.secret = config.qrSecret;
+    const fp = sha(this.state.secret).slice(0, 6);
+    if (this.state.secretFp && this.state.secretFp !== fp) {
+      this.state.secretChangedAt = Date.now();
+      console.error('WARNING: the QR secret changed. Table QR codes printed with the old secret no longer work; restore the old QR_SECRET or reprint.');
+    }
+    this.state.secretFp = fp;
     this.setTableCount(this.state.tableCount || config.tableCount, false);
     this.setMenu(this.state.menu || defaultMenu, false);
     this.save();
@@ -108,6 +116,16 @@ class Store {
       if (!this.warnedSave) console.error(`WARNING: cannot save state to ${this.file} (${e.code || e.message}); running in memory only.`);
       this.warnedSave = true;
     }
+  }
+
+  /** Facts staff need before printing QR codes they can't easily replace. */
+  qrHealth() {
+    return {
+      fingerprint: this.state.secretFp,
+      secretFromEnv: this.secretFromEnv,
+      secretChangedAt: this.state.secretChangedAt || null,
+      persisted: !this.warnedSave,
+    };
   }
 
   // ---- static table QR signature -------------------------------------

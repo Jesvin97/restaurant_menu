@@ -151,11 +151,17 @@ async function setup() {
   const addQr = async (label, file) => {
     const r = await fetch(`/api/admin/qr/${file}.svg`, { headers: auth() });
     if (!r.ok) return;
-    grid.append(h('div', { class: 'qrcard' }, h('img', { src: URL.createObjectURL(await r.blob()), alt: `QR code for ${label}` }), h('b', {}, label)));
+    grid.append(h('div', { class: 'qrcard' }, h('div', { class: 'qrtitle' }, label), h('img', { src: URL.createObjectURL(await r.blob()), alt: `QR code for ${label}` }), h('div', { class: 'qrcap' }, file === 'counter' ? 'Scan to see our menu' : 'Scan to order from your table')));
   };
   addQr('Counter menu', 'counter');
   for (let i = 1; i <= s.tableCount; i++) addQr(`Table ${i}`, String(i));
-  return [h('div', { class: 'card' }, h('h3', {}, 'Number of tables'),
+  const check = (good, text) => h('div', { class: good ? 'ok' : 'err' }, (good ? '✓ ' : '⚠ ') + text);
+  const health = h('div', { class: 'card' }, h('h3', {}, 'Before you print (QR codes are permanent)'),
+    check(s.secretFromEnv, s.secretFromEnv ? 'QR_SECRET is set on the server, so these codes survive restarts and redeploys.' : 'QR_SECRET is not set. The secret is only stored in the server\'s data file; if that is lost, every printed QR stops working. Set QR_SECRET first.'),
+    check(!s.secretChangedAt, s.secretChangedAt ? `The QR secret changed on ${new Date(s.secretChangedAt).toLocaleDateString()}. QR codes printed before then no longer work.` : `Secret fingerprint ${s.fingerprint} — if this ever changes, printed codes break.`),
+    check(s.hostKind === 'custom' || (s.baseUrlSet && s.hostKind !== 'local'), s.hostKind === 'local' ? `Codes point to ${s.baseUrl}, which only works on your own network. Use your public address.` : s.hostKind === 'vercel' && !s.baseUrlSet ? `Codes point to ${s.baseUrl}. A temporary address is fine for testing, but print only after you have a permanent domain (set BASE_URL) — the address is baked into every code.` : `Codes point to ${s.baseUrl}. Keep this address working for as long as the prints are in use.`),
+    check(s.persisted, s.persisted ? 'Server can save its data.' : 'Server cannot save data, so orders and settings reset on restart (printed QR codes still work).'));
+  return [health, h('div', { class: 'card mt8' }, h('h3', {}, 'Number of tables'),
       h('div', { class: 'stepper' }, h('button', { class: 'add', 'aria-label': 'Fewer tables', onclick: bump(-1) }, '−'), count, h('button', { class: 'add', 'aria-label': 'More tables', onclick: bump(1) }, '+'), save),
       h('div', { class: 'sub' }, 'Adding tables is instant. Removing only works for free tables, from the highest number down. New tables need their QR printed below.')),
     h('h2', {}, 'QR codes'), h('div', { class: 'sub' }, `Links point to ${s.baseUrl}. Set BASE_URL on the server if that's not your public address.`),

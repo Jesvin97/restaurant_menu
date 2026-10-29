@@ -60,6 +60,15 @@ At "Get bill" the guest is asked for name and mobile (skippable unless `REQUIRE_
 - Behind a proxy set `TRUST_PROXY=1` (automatic on Vercel) so rate limits see the real client IP.
 - Limits you should know: rate limits are per server instance; uploaded `.xlsx` files are parsed by `exceljs` (staff-only, 3 MB cap) which carries a moderate `uuid` advisory in a code path this app doesn't use.
 
+## Printing QR codes once
+
+The table QR is permanent: it encodes `<your address>/t/<n>?s=<signature>`, and the signature is derived from `QR_SECRET` and the table number only. So a printed code keeps working through restarts, redeploys, wiped data, and removing then re-adding a table, as long as two things stay the same:
+
+1. **`QR_SECRET`** - set it on the server before printing and never change it. (If it changes, the server warns, and *Setup* shows a permanent notice with the date.)
+2. **The address** - it is part of the printed code. Set `BASE_URL` to your permanent domain *before* printing; don't print from a temporary `*.vercel.app` or `localhost` address. If you later move domains, keep the old one redirecting to the new one.
+
+*Staff -> Setup -> Before you print* checks all of this and shows the secret's fingerprint. The codes themselves are safe to leave on tables: scanning one only asks staff to seat the guest, it never grants access.
+
 ## Number of tables
 
 *Staff -> Setup* has a stepper for the number of tables (1-200) and shows every QR (counter + each table) to print. Adding is instant; removing only works for free tables from the highest number down. `TABLE_COUNT` is just the starting value.

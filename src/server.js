@@ -162,7 +162,15 @@ function createServer(store = new Store(), opts = {}) {
     if (req.method === 'POST' && p === '/api/admin/login') return login(res, clientIp(req), await readJson(req));
     if (!isAdmin(req)) return send(res, 401, { error: 'Please sign in' });
 
-    if (req.method === 'GET' && p === '/api/admin/settings') return send(res, 200, { tableCount: store.tableCount, maxTables: config.maxTables, baseUrl: origin(req) });
+    if (req.method === 'GET' && p === '/api/admin/settings') {
+      const base = origin(req);
+      const host = new URL(base).hostname;
+      return send(res, 200, {
+        tableCount: store.tableCount, maxTables: config.maxTables, baseUrl: base, baseUrlSet: config.baseUrlSet,
+        hostKind: /^(localhost|127\.|10\.|192\.168\.)/.test(host) ? 'local' : /\.vercel\.app$/.test(host) ? 'vercel' : 'custom',
+        ...store.qrHealth(),
+      });
+    }
     if (req.method === 'POST' && p === '/api/admin/settings') {
       const body = await readJson(req);
       return reply(res, store.setTableCount(Number(body.tableCount)));
