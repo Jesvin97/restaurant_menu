@@ -36,6 +36,16 @@ npm run e2e      # real-browser phone-size run (needs Playwright); SHOTS=dir sav
 - **Excel upload:** columns `Category, Name, Description, Type (Veg/Non-Veg), Half, Full` (or a single `Price`), `Allergens` (comma separated, e.g. `dairy, gluten`). *Check file* previews and reports row-level errors; *Replace my menu* applies it. A CSV template is downloadable. On a normal server the imported menu is saved in the state file.
 - **Allergy filter:** guests tap *Allergies*, choose what to avoid, and dishes whose Allergens column lists it are hidden (remembered on their phone). It relies on the kitchen's data, and the UI says so.
 
+## Demo mode
+
+`DEMO_MODE=1 npm start` (or just add `DEMO_MODE=1` as the only environment variable on Vercel) turns the app into a shareable sandbox. The home page `/` becomes a demo page with one-tap entry points: pick a table as a guest, open the staff dashboard already signed in, scan table/counter QR codes from the screen, and *Reset demo*.
+
+- Tables open instantly, with no staff approval or table code (anyone scanning a table joins it), so one person can try the whole flow alone. Tables 2 and 3 start with sample orders and a bill request so the staff screens aren't empty.
+- Every page shows a "Demo" banner. The staff password is public (`demo`), so staff import and table-count changes are disabled.
+- Nothing is written to disk and guest names/phone numbers are not kept after a table closes. Sessions expire after 1 hour idle.
+- Don't use demo mode for a real restaurant; the open seating and public password are the opposite of the production security model.
+- On Vercel the demo's state is per server instance, so the odd request may land on a fresh instance and look reset.
+
 ## Staff dashboard (`/admin`)
 
 - **Orders** - every table's orders land here within ~3 s, with a beep. Move each through *New -> Sent to kitchen -> Served*; guests see the status on their phone. Leave this open on the counter screen (click once on the page so the browser allows the beep).

@@ -9,7 +9,7 @@ const rid = (n = 8) => crypto.randomBytes(n).toString('hex');
 class Store {
   constructor(file = config.stateFile, opts = {}) {
     this.file = file;
-    this.persist = opts.persist !== false;
+    this.persist = opts.persist ?? !config.demo; // a public demo never writes guest data to disk
     this.now = opts.now || (() => Date.now());
     this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0, menu: null, unavailable: {} };
     if (this.persist && fs.existsSync(file)) {
@@ -34,6 +34,26 @@ class Store {
     this.setTableCount(this.state.tableCount || config.tableCount, false);
     this.setMenu(this.state.menu || defaultMenu, false);
     this.save();
+    if (config.demo) this.seedDemo();
+  }
+
+  // ---- demo ------------------------------------------------------------
+  /** Fresh sandbox: clears everything guests created and puts a few realistic sessions on the staff screens. */
+  seedDemo() {
+    for (const t of Object.values(this.state.tables)) { t.session = null; t.pending = []; }
+    this.state.customers = {}; this.state.history = []; this.state.unavailable = {};
+    this.setMenu(require('./menu.json'), false);
+    this.state.menu = null;
+    const seed = (id, lines, status) => {
+      const t = this.table(id);
+      if (!t) return;
+      this._open(t, sha(`demo-seed-${id}`));
+      for (const [dish, opt, qty] of lines) this.placeOrder(id, `demo-seed-${id}`, [{ id: dish, opt, qty }]);
+      if (status === 'closing') this.requestBill(id, `demo-seed-${id}`);
+      if (status === 'kitchen') t.session.orders.forEach((o) => { o.status = 'kitchen'; });
+    };
+    seed('2', [['paneer-tikka', 'regular', 1], ['butter-naan', 'regular', 3]], 'kitchen');
+    seed('3', [['chicken-dum-biryani', 'full', 2], ['masala-chai', 'regular', 2]], 'closing');
   }
 
   // ---- tables ----------------------------------------------------------
@@ -151,7 +171,7 @@ class Store {
     const s = t.session;
     if (!s) return;
     if (s.orders.length) {
-      if (s.customer) this._recordCustomer(s.customer, this.bill(s).total);
+      if (s.customer && !config.demo) this._recordCustomer(s.customer, this.bill(s).total);
       this.state.history.push({ ...this.bill(s), sessionId: s.id, closedAt: this.now(), reason, customerPhone: s.customer && s.customer.phone });
       this.state.history = this.state.history.slice(-2000);
     }
@@ -188,6 +208,8 @@ class Store {
     const h = sha(token);
     if (t.session) {
       if (t.session.members.includes(h)) return { state: 'active' };
+      // A public demo has no one to hand out table codes, so anyone scanning joins the open table.
+      if (config.demo) { t.session.members.push(h); this.save(); return { state: 'active' }; }
       return { state: 'needs_code' };
     }
     if (config.autoSeat) { this._open(t, h); this.save(); return { state: 'active' }; }
