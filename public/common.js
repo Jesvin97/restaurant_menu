@@ -16,50 +16,67 @@ const api = async (path, body, headers = {}) => {
 };
 const dot = (veg) => h('span', { class: 'dot ' + (veg ? 'v' : 'n'), title: veg ? 'Veg' : 'Non-veg' });
 
-/** Renders category chips + veg filter + search + sections. `opts.qty` (optional) adds +/- controls. */
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: setting just isn't remembered */ } },
+};
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' ');
+const sheet = (...kids) => { const ov = h('div', { class: 'overlay', onclick: (e) => e.target === ov && ov.remove() }, h('div', { class: 'sheet' }, ...kids)); document.body.append(ov); return ov; };
+
+/**
+ * Menu browser. One category at a time (fewer choices per screen), familiar delivery-app patterns:
+ * sticky category tabs, veg/non-veg switch, ADD -> stepper, allergy filter behind a single button.
+ * opts.cart (Map "dishId|optionId" -> qty) + opts.onChange turn on ordering controls.
+ */
 function renderMenu(root, menu, opts = {}) {
-  const st = { cat: 'all', diet: 'all', q: '' };
-  const bar = h('div', { class: 'bar' });
-  const cats = h('div', { class: 'row' });
-  const filters = h('div', { class: 'row filters' });
-  const list = h('main');
+  const st = { cat: menu.categories[0] && menu.categories[0].id, diet: 'all', q: '', avoid: new Set(store.get('allergens', [])) };
+  const allergens = [...new Set(['gluten', 'dairy', 'egg', 'peanut', 'tree-nut', 'soy', 'fish', 'shellfish', 'sesame', ...menu.items.flatMap((i) => i.allergens || [])])];
+  const bar = h('div', { class: 'bar' }), top = h('div', { class: 'row filters' }), cats = h('div', { class: 'row mt8' }), list = h('main');
+  const search = h('input', { type: 'search', class: 'search', placeholder: 'Search dishes', value: st.q, 'aria-label': 'Search dishes', oninput: (e) => { st.q = e.target.value; drawCats(); drawList(); } });
   const chip = (label, on, fn) => h('button', { class: 'chip' + (on ? ' on' : ''), onclick: fn }, label);
   const draw = () => {
-    cats.replaceChildren(chip('All', st.cat === 'all', () => { st.cat = 'all'; draw(); }),
-      ...menu.categories.map((c) => chip(c.name, st.cat === c.id, () => { st.cat = c.id; draw(); })));
-    filters.replaceChildren(
-      ...[['all', 'All'], ['veg', '🟢 Veg'], ['nonveg', '🔴 Non-veg']].map(([k, l]) => chip(l, st.diet === k, () => { st.diet = k; draw(); })),
-      h('input', { type: 'search', placeholder: 'Search dishes', value: st.q, oninput: (e) => { st.q = e.target.value; drawList(); } }));
+    top.replaceChildren(
+      h('div', { class: 'seg' }, ...[['all', 'All'], ['veg', 'Veg'], ['nonveg', 'Non-veg']].map(([k, l]) => h('button', { class: (st.diet === k ? 'on ' : '') + k, onclick: () => { st.diet = k; draw(); } }, l))),
+      h('button', { class: 'chip' + (st.avoid.size ? ' on' : ''), onclick: allergyPicker }, st.avoid.size ? `Allergies (${st.avoid.size})` : 'Allergies'));
+    drawCats();
     drawList();
   };
+  const drawCats = () => cats.replaceChildren(...menu.categories.map((c) => chip(c.name, st.cat === c.id && !st.q.trim(), () => { st.cat = c.id; st.q = ''; search.value = ''; draw(); })));
+  const allergyPicker = () => {
+    const boxes = allergens.map((a) => h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: st.avoid.has(a) ? '' : null, 'data-a': a }), ' ' + cap(a)));
+    const ov = sheet(h('h2', { class: 'flush' }, 'Hide dishes containing…'), ...boxes,
+      h('p', { class: 'sub' }, 'Based on the allergen list the kitchen entered. For severe allergies, please also tell our staff.'),
+      h('div', { class: 'row' }, h('button', { class: 'btn sec', onclick: () => { st.avoid.clear(); apply(); } }, 'Clear'), h('button', { class: 'btn', onclick: () => { st.avoid = new Set([...ov.querySelectorAll('input:checked')].map((x) => x.dataset.a)); apply(); } }, 'Apply')));
+    const apply = () => { store.set('allergens', [...st.avoid]); ov.remove(); draw(); };
+  };
+  const visible = (i) => !(i.allergens || []).some((a) => st.avoid.has(a));
   const drawList = () => {
     const q = st.q.trim().toLowerCase();
-    const out = [];
-    for (const c of menu.categories) {
-      if (st.cat !== 'all' && st.cat !== c.id) continue;
-      const items = menu.items.filter((i) => i.category === c.id
-        && (st.diet === 'all' || (st.diet === 'veg') === i.veg)
-        && (!q || (i.name + ' ' + i.description).toLowerCase().includes(q)));
-      if (!items.length) continue;
-      out.push(h('h2', {}, c.name), ...items.map((i) => itemRow(i)));
-    }
-    list.replaceChildren(...(out.length ? out : [h('p', { class: 'sub' }, 'No dishes match.')]));
+    let hidden = 0;
+    const items = menu.items.filter((i) => (q || i.category === st.cat)
+      && (st.diet === 'all' || (st.diet === 'veg') === i.veg)
+      && (!q || (i.name + ' ' + i.description).toLowerCase().includes(q))
+      && (visible(i) || (hidden++, false)));
+    list.replaceChildren(
+      ...(st.avoid.size ? [h('p', { class: 'sub note' }, `Hiding dishes with: ${[...st.avoid].map(cap).join(', ')}${hidden ? ` (${hidden} hidden)` : ''}`)] : []),
+      ...(items.length ? items.map(itemRow) : [h('p', { class: 'sub' }, 'No dishes here.')]));
   };
-  const itemRow = (i) => h('div', { class: 'item', 'data-id': i.id }, dot(i.veg),
-    h('div', { class: 'info' }, h('div', { class: 'name' }, i.name), i.description && h('div', { class: 'desc' }, i.description), h('div', { class: 'price' }, rupee(i.price))),
-    opts.cart && qtyControl(i));
-  const qtyControl = (i) => {
-    const box = h('div', { class: 'qty' });
+  const itemRow = (i) => h('div', { class: 'item' }, dot(i.veg),
+    h('div', { class: 'info' }, h('div', { class: 'name' }, i.name), i.description && h('div', { class: 'desc' }, i.description),
+      ...(i.options.length > 1 ? i.options.map((o) => h('div', { class: 'opt' }, h('span', {}, `${o.label} · ${rupee(o.price)}`), opts.cart && qtyControl(i, o))) : [h('div', { class: 'price' }, rupee(i.options[0].price))])),
+    opts.cart && i.options.length === 1 && qtyControl(i, i.options[0]));
+  const qtyControl = (i, o) => {
+    const key = `${i.id}|${o.id}`, box = h('div', { class: 'qty' });
+    const set = (n) => { n > 0 ? opts.cart.set(key, n) : opts.cart.delete(key); paint(); opts.onChange(); };
     const paint = () => {
-      const n = opts.cart.get(i.id) || 0;
-      box.replaceChildren(...(n ? [h('button', { onclick: () => { opts.cart.set(i.id, n - 1); if (n - 1 === 0) opts.cart.delete(i.id); paint(); opts.onChange(); } }, '−'), h('b', {}, String(n)),
-        h('button', { onclick: () => { if (n < 20) { opts.cart.set(i.id, n + 1); paint(); opts.onChange(); } } }, '+')]
-        : [h('button', { class: 'add', onclick: () => { opts.cart.set(i.id, 1); paint(); opts.onChange(); } }, 'ADD')]));
+      const n = opts.cart.get(key) || 0;
+      box.replaceChildren(...(n ? [h('button', { 'aria-label': 'Remove one', onclick: () => set(n - 1) }, '−'), h('b', {}, String(n)), h('button', { 'aria-label': 'Add one', onclick: () => n < 20 && set(n + 1) }, '+')]
+        : [h('button', { class: 'add', onclick: () => set(1) }, 'ADD')]));
     };
     paint();
     return box;
   };
-  bar.append(cats, filters);
-  root.replaceChildren(bar, list);
+  bar.append(top, cats);
+  root.replaceChildren(bar, h('div', { class: 'searchrow' }, search), list);
   draw();
 }
