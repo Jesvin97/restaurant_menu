@@ -35,356 +35,800 @@
   ],
   "items": [
     {
-      "id": 1,
+      "id": "idli-3-pcs",
       "category": "breakfast",
       "name": "Idli (3 pcs)",
       "description": "Steamed rice cakes with sambar and chutney",
-      "price": 60,
-      "veg": true
+      "veg": true,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 60
+        }
+      ]
     },
     {
-      "id": 2,
+      "id": "masala-dosa",
       "category": "breakfast",
       "name": "Masala Dosa",
       "description": "Crisp dosa with potato masala",
-      "price": 90,
-      "veg": true
+      "veg": true,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 90
+        }
+      ]
     },
     {
-      "id": 3,
+      "id": "poori-bhaji",
       "category": "breakfast",
       "name": "Poori Bhaji",
       "description": "Fluffy poori with potato bhaji",
-      "price": 80,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 80
+        }
+      ]
     },
     {
-      "id": 4,
+      "id": "aloo-paratha",
       "category": "breakfast",
       "name": "Aloo Paratha",
       "description": "With curd and pickle",
-      "price": 85,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 85
+        }
+      ]
     },
     {
-      "id": 5,
+      "id": "egg-omelette",
       "category": "breakfast",
       "name": "Egg Omelette",
       "description": "Two-egg masala omelette with toast",
-      "price": 70,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "egg"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 70
+        }
+      ]
     },
     {
-      "id": 6,
+      "id": "egg-bhurji-pav",
       "category": "breakfast",
       "name": "Egg Bhurji Pav",
       "description": "Spicy scrambled eggs, buttered pav",
-      "price": 90,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "gluten",
+        "egg"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 90
+        }
+      ]
     },
     {
-      "id": 7,
+      "id": "veg-thali",
       "category": "lunch",
       "name": "Veg Thali",
       "description": "Dal, 2 sabzi, rice, roti, salad, sweet",
-      "price": 160,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 160
+        }
+      ]
     },
     {
-      "id": 8,
+      "id": "chicken-thali",
       "category": "lunch",
       "name": "Chicken Thali",
       "description": "Chicken curry, dal, rice, roti, salad",
-      "price": 220,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 220
+        }
+      ]
     },
     {
-      "id": 9,
+      "id": "dal-tadka-and-rice",
       "category": "lunch",
       "name": "Dal Tadka & Rice",
       "description": "Yellow dal tempered with garlic",
-      "price": 130,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 130
+        }
+      ]
     },
     {
-      "id": 10,
+      "id": "paneer-butter-masala",
       "category": "lunch",
       "name": "Paneer Butter Masala",
       "description": "Creamy tomato gravy",
-      "price": 190,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 120
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 190
+        }
+      ]
     },
     {
-      "id": 11,
+      "id": "butter-chicken",
       "category": "lunch",
       "name": "Butter Chicken",
       "description": "Classic makhani gravy",
-      "price": 250,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 160
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 250
+        }
+      ]
     },
     {
-      "id": 12,
+      "id": "fish-curry-meals",
       "category": "lunch",
       "name": "Fish Curry Meals",
       "description": "Coastal fish curry with rice",
-      "price": 230,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "fish"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 230
+        }
+      ]
     },
     {
-      "id": 13,
+      "id": "veg-biryani",
       "category": "biryani",
       "name": "Veg Biryani",
       "description": "Basmati with seasonal vegetables",
-      "price": 170,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 110
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 170
+        }
+      ]
     },
     {
-      "id": 14,
+      "id": "paneer-biryani",
       "category": "biryani",
       "name": "Paneer Biryani",
       "description": "Marinated paneer dum biryani",
-      "price": 200,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 130
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 200
+        }
+      ]
     },
     {
-      "id": 15,
+      "id": "chicken-dum-biryani",
       "category": "biryani",
       "name": "Chicken Dum Biryani",
       "description": "Slow-cooked with raita",
-      "price": 240,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 160
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 240
+        }
+      ]
     },
     {
-      "id": 16,
+      "id": "mutton-biryani",
       "category": "biryani",
       "name": "Mutton Biryani",
       "description": "Tender mutton, saffron rice",
-      "price": 320,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 200
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 320
+        }
+      ]
     },
     {
-      "id": 17,
+      "id": "egg-biryani",
       "category": "biryani",
       "name": "Egg Biryani",
       "description": "Boiled eggs in masala rice",
-      "price": 180,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy",
+        "egg"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 180
+        }
+      ]
     },
     {
-      "id": 18,
+      "id": "tandoori-roti",
       "category": "breads",
       "name": "Tandoori Roti",
       "description": "",
-      "price": 20,
-      "veg": true
+      "veg": true,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 20
+        }
+      ]
     },
     {
-      "id": 19,
+      "id": "butter-naan",
       "category": "breads",
       "name": "Butter Naan",
       "description": "",
-      "price": 40,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 40
+        }
+      ]
     },
     {
-      "id": 20,
+      "id": "garlic-naan",
       "category": "breads",
       "name": "Garlic Naan",
       "description": "",
-      "price": 55,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 55
+        }
+      ]
     },
     {
-      "id": 21,
+      "id": "laccha-paratha",
       "category": "breads",
       "name": "Laccha Paratha",
       "description": "",
-      "price": 45,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 45
+        }
+      ]
     },
     {
-      "id": 22,
+      "id": "cheese-kulcha",
       "category": "breads",
       "name": "Cheese Kulcha",
       "description": "",
-      "price": 75,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 75
+        }
+      ]
     },
     {
-      "id": 23,
+      "id": "keema-naan",
       "category": "breads",
       "name": "Keema Naan",
       "description": "Stuffed with spiced mutton mince",
-      "price": 90,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "dairy",
+        "gluten"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 90
+        }
+      ]
     },
     {
-      "id": 24,
+      "id": "paneer-tikka",
       "category": "grills",
       "name": "Paneer Tikka",
       "description": "Char-grilled marinated paneer",
-      "price": 210,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 210
+        }
+      ]
     },
     {
-      "id": 25,
+      "id": "hara-bhara-kebab",
       "category": "grills",
       "name": "Hara Bhara Kebab",
       "description": "Spinach and green pea patties",
-      "price": 170,
-      "veg": true
+      "veg": true,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 170
+        }
+      ]
     },
     {
-      "id": 26,
+      "id": "chicken-tikka",
       "category": "grills",
       "name": "Chicken Tikka",
       "description": "Boneless, tandoor grilled",
-      "price": 260,
-      "veg": false
+      "veg": false,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 260
+        }
+      ]
     },
     {
-      "id": 27,
+      "id": "tandoori-chicken-half",
       "category": "grills",
       "name": "Tandoori Chicken (Half)",
       "description": "Smoky bone-in chicken",
-      "price": 280,
-      "veg": false
+      "veg": false,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 280
+        }
+      ]
     },
     {
-      "id": 28,
+      "id": "seekh-kebab",
       "category": "grills",
       "name": "Seekh Kebab",
       "description": "Minced lamb skewers",
-      "price": 290,
-      "veg": false
+      "veg": false,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 290
+        }
+      ]
     },
     {
-      "id": 29,
+      "id": "grilled-fish-tikka",
       "category": "grills",
       "name": "Grilled Fish Tikka",
       "description": "Ajwain-marinated fish",
-      "price": 310,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "fish"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 310
+        }
+      ]
     },
     {
-      "id": 30,
+      "id": "veg-hakka-noodles",
       "category": "chinese",
       "name": "Veg Hakka Noodles",
       "description": "",
-      "price": 150,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "gluten",
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 150
+        }
+      ]
     },
     {
-      "id": 31,
+      "id": "veg-manchurian-gravy",
       "category": "chinese",
       "name": "Veg Manchurian (Gravy)",
       "description": "",
-      "price": 160,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "gluten",
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 100
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 160
+        }
+      ]
     },
     {
-      "id": 32,
+      "id": "chilli-paneer",
       "category": "chinese",
       "name": "Chilli Paneer",
       "description": "Dry or gravy",
-      "price": 190,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 120
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 190
+        }
+      ]
     },
     {
-      "id": 33,
+      "id": "chicken-fried-rice",
       "category": "chinese",
       "name": "Chicken Fried Rice",
       "description": "",
-      "price": 190,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 190
+        }
+      ]
     },
     {
-      "id": 34,
+      "id": "chicken-schezwan-noodles",
       "category": "chinese",
       "name": "Chicken Schezwan Noodles",
       "description": "",
-      "price": 200,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "gluten",
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 200
+        }
+      ]
     },
     {
-      "id": 35,
+      "id": "chilli-chicken",
       "category": "chinese",
       "name": "Chilli Chicken",
       "description": "Indo-Chinese classic",
-      "price": 230,
-      "veg": false
+      "veg": false,
+      "allergens": [
+        "soy"
+      ],
+      "options": [
+        {
+          "id": "half",
+          "label": "Half",
+          "price": 150
+        },
+        {
+          "id": "full",
+          "label": "Full",
+          "price": 230
+        }
+      ]
     },
     {
-      "id": 36,
+      "id": "gulab-jamun-2-pcs",
       "category": "desserts",
       "name": "Gulab Jamun (2 pcs)",
       "description": "",
-      "price": 60,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 60
+        }
+      ]
     },
     {
-      "id": 37,
+      "id": "ice-cream-scoop",
       "category": "desserts",
       "name": "Ice Cream Scoop",
       "description": "Vanilla / chocolate / strawberry",
-      "price": 70,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 70
+        }
+      ]
     },
     {
-      "id": 38,
+      "id": "phirni",
       "category": "desserts",
       "name": "Phirni",
       "description": "",
-      "price": 80,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "tree-nut"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 80
+        }
+      ]
     },
     {
-      "id": 39,
+      "id": "brownie-with-ice-cream",
       "category": "desserts",
       "name": "Brownie with Ice Cream",
       "description": "",
-      "price": 140,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy",
+        "gluten",
+        "egg",
+        "tree-nut"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 140
+        }
+      ]
     },
     {
-      "id": 40,
+      "id": "masala-chai",
       "category": "beverages",
       "name": "Masala Chai",
       "description": "",
-      "price": 25,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 25
+        }
+      ]
     },
     {
-      "id": 41,
+      "id": "filter-coffee",
       "category": "beverages",
       "name": "Filter Coffee",
       "description": "",
-      "price": 35,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 35
+        }
+      ]
     },
     {
-      "id": 42,
+      "id": "fresh-lime-soda",
       "category": "beverages",
       "name": "Fresh Lime Soda",
       "description": "Sweet / salted",
-      "price": 50,
-      "veg": true
+      "veg": true,
+      "allergens": [],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 50
+        }
+      ]
     },
     {
-      "id": 43,
+      "id": "mango-lassi",
       "category": "beverages",
       "name": "Mango Lassi",
       "description": "",
-      "price": 80,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 80
+        }
+      ]
     },
     {
-      "id": 44,
+      "id": "cold-coffee",
       "category": "beverages",
       "name": "Cold Coffee",
       "description": "",
-      "price": 90,
-      "veg": true
+      "veg": true,
+      "allergens": [
+        "dairy"
+      ],
+      "options": [
+        {
+          "id": "regular",
+          "label": "",
+          "price": 90
+        }
+      ]
     }
   ]
 }

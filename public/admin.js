@@ -21,24 +21,29 @@ const post = (path, body = {}) => call(path, body);
 
 function nav() {
   return h('div', { class: 'tabs' },
-    ...[['orders', 'Live orders'], ['tables', 'Tables'], ['customers', 'Customers']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => { tab = k; load(); } }, l)),
+    ...[['orders', 'Live orders'], ['tables', 'Tables'], ['menu', 'Menu'], ['customers', 'Customers']].map(([k, l]) => h('button', { class: 'chip' + (tab === k ? ' on' : ''), onclick: () => { tab = k; load(); } }, l)),
     h('label', { class: 'sub', style: 'margin-left:auto;align-self:center' }, h('input', { type: 'checkbox', checked: sound ? '' : null, onchange: (e) => { sound = e.target.checked; } }), ' 🔔 sound'));
 }
 
 async function orders() {
   const d = await call('/api/admin/orders');
-  const fresh = seen !== null && d.orders.some((o) => o.seq > seen);
-  const waiting = d.waiting.length;
-  if (fresh && sound) beep();
+  const newest = Math.max(0, ...d.orders.map((o) => o.seq), ...d.billRequests.map((b) => b.seq || 0));
+  if (seen !== null && newest > seen && sound) beep();
   const prevSeen = seen; seen = d.lastSeq;
-  const btn = (o, status, label) => h('button', { class: 'btn small', onclick: run(() => post(`/api/admin/orders/${o.tableId}/${o.id}/status`, { status })) }, label);
+  const btn = (o, status, text) => h('button', { class: 'btn small', onclick: run(() => post(`/api/admin/orders/${o.tableId}/${o.id}/status`, { status })) }, text);
   const card = (o) => h('div', { class: `ord s-${o.status}` + (prevSeen !== null && o.seq > prevSeen ? ' new' : '') },
     h('div', {}, h('b', {}, `Table ${o.tableId}`), o.customer && ` · ${o.customer}`, h('span', { class: 'tag' }, time(o.at))),
     ...o.items.map((i) => h('div', {}, dot(i.veg), ` ${i.qty} × ${i.name}`)),
     h('div', { class: 'row', style: 'margin-top:8px' }, o.status === 'new' ? btn(o, 'kitchen', '✓ Sent to kitchen') : null, o.status !== 'served' ? btn(o, 'served', 'Served') : null));
-  const col = (title, st) => [h('h2', {}, `${title} (${d.orders.filter((o) => o.status === st).length})`), ...d.orders.filter((o) => o.status === st).map(card)];
-  return [waiting ? h('div', { class: 'ord s-new' }, `🔔 Guest waiting at table ${d.waiting.join(', ')} — open the Tables tab to seat`) : null,
-    ...col('New — tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served (until table is closed)', 'served')];
+  const col = (title, st) => { const xs = d.orders.filter((o) => o.status === st); return xs.length || st !== 'served' ? [h('h2', {}, `${title} (${xs.length})`), ...xs.map(card)] : []; };
+  return [
+    ...d.billRequests.map((b) => h('div', { class: 'notice' }, h('span', {}, `🧾 Table ${b.tableId}${b.customer ? ' (' + b.customer + ')' : ''} asked for the bill · ${rupee(b.total)}`),
+      h('button', { class: 'btn small warn', onclick: run(() => post(`/api/admin/tables/${b.tableId}/bill`)) }, 'Generate bill'))),
+    ...d.restock.map((r) => h('div', { class: 'notice' }, h('span', {}, `🍽 ${r.name} was marked unavailable on ${r.since}. Show it on the menu again?`),
+      h('button', { class: 'btn small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: true })) }, 'Yes, bring back'),
+      h('button', { class: 'chip small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: false })) }, 'No, keep hidden'))),
+    d.waiting.length ? h('div', { class: 'notice' }, `🔔 Guest waiting at table ${d.waiting.join(', ')} — open Tables to seat`) : null,
+    ...col('New — tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served', 'served')];
 }
 
 async function tables() {
@@ -46,14 +51,41 @@ async function tables() {
   return [h('table', { class: 'a' }, h('tr', {}, ['Table', 'Status', 'Orders', 'Actions'].map((t) => h('th', {}, t))),
     ...data.tables.map((t) => {
       const s = t.session;
-      const status = s ? [s.status === 'billed' ? 'Bill generated' : 'Ordering', h('span', { class: 'tag' }, 'code ' + s.code), h('span', { class: 'tag' }, s.devices + ' device(s)')] : [t.pending ? '🔔 Guest waiting' : 'Free'];
+      const st = s && ({ open: 'Ordering', closing: '🧾 Bill requested', billed: 'Bill shown to guest' })[s.status];
+      const status = s ? [st, h('span', { class: 'tag' }, 'code ' + s.code), h('span', { class: 'tag' }, s.devices + ' device(s)')] : [t.pending ? '🔔 Guest waiting' : 'Free'];
       const ords = s ? [...s.orders.map((o) => h('div', {}, h('small', {}, time(o.at) + ' '), o.items.map((i) => `${i.qty}× ${i.name}`).join(', '),
         h('button', { class: 'chip small', onclick: () => confirm('Void this order?') && run(() => post(`/api/admin/tables/${t.id}/void`, { orderId: o.id }))() }, 'void'))), h('b', {}, 'Total ' + rupee(s.bill.total))] : [];
       return h('tr', {}, h('td', {}, h('b', {}, t.id)), h('td', {}, status), h('td', {}, ords), h('td', {},
         !s && t.pending ? h('button', { class: 'btn small', onclick: run(() => post(`/api/admin/tables/${t.id}/seat`)) }, 'Seat guest') : null,
-        s && s.status === 'billed' ? h('button', { class: 'chip small', onclick: run(() => post(`/api/admin/tables/${t.id}/reopen`)) }, 'Reopen') : null,
+        s && s.status !== 'billed' && s.orders.length ? h('button', { class: 'btn small warn', onclick: run(() => post(`/api/admin/tables/${t.id}/bill`)) }, 'Generate bill') : null,
+        s && s.status !== 'open' ? h('button', { class: 'chip small', onclick: run(() => post(`/api/admin/tables/${t.id}/reopen`)) }, 'Reopen') : null,
         s ? h('button', { class: 'btn small', onclick: () => confirm(`Mark table ${t.id} paid & close? Guests will no longer be able to order.`) && run(() => post(`/api/admin/tables/${t.id}/close`))() }, 'Paid & close') : null));
     }))];
+}
+
+async function menuTab() {
+  const m = await call('/api/admin/menu');
+  const result = h('div');
+  const file = h('input', { type: 'file', accept: '.xlsx,.csv', class: 'file' });
+  const send = async (apply) => {
+    const f = file.files[0];
+    if (!f) { result.textContent = 'Choose an .xlsx or .csv file first.'; return; }
+    const kind = /\.csv$/i.test(f.name) ? 'csv' : 'xlsx';
+    const r = await fetch(`/api/admin/menu/import?type=${kind}&apply=${apply ? 1 : 0}`, { method: 'POST', headers: { 'x-admin-password': pw, 'Content-Type': 'application/octet-stream' }, body: f });
+    const j = await r.json();
+    if (!r.ok) { result.replaceChildren(h('pre', { class: 'err', style: 'white-space:pre-wrap' }, j.error)); return; }
+    if (apply) { alert(`Menu replaced: ${j.dishes} dishes.`); return load(); }
+    result.replaceChildren(h('p', {}, `✔ ${j.dishes} dishes in ${j.categories.length} sections (${j.categories.join(', ')}). e.g. ${j.sample.join(', ')}…`),
+      h('button', { class: 'btn warn', style: 'max-width:280px', onclick: () => confirm('Replace the whole current menu with this file?') && send(true) }, 'Replace my menu with this'));
+  };
+  const toggle = (i) => h('label', { class: 'chk' + (i.available ? '' : ' off') }, h('input', { type: 'checkbox', checked: i.available ? '' : null, onchange: run(() => post('/api/admin/menu/availability', { itemId: i.id, available: !i.available })) }),
+    dot(i.veg), ` ${i.name}`, h('span', { class: 'sub' }, ' ' + i.options.map((o) => (o.label ? o.label + ' ' : '') + rupee(o.price)).join(' / ')));
+  return [h('div', { class: 'bill', style: 'margin:0 0 16px' }, h('b', {}, 'Upload menu (Excel)'),
+      h('p', { class: 'sub' }, 'Columns: Category, Name, Description, Type (Veg / Non-Veg), Half, Full (or a single Price), Allergens.'),
+      h('a', { href: '#', onclick: async (e) => { e.preventDefault(); const r = await fetch('/api/admin/menu-template.csv', { headers: { 'x-admin-password': pw } }); h('a', { href: URL.createObjectURL(await r.blob()), download: 'menu-template.csv' }).click(); } }, 'Download template (opens in Excel)'),
+      file, h('button', { class: 'btn', style: 'max-width:200px', onclick: () => send(false) }, 'Check file'), result),
+    h('p', { class: 'sub' }, 'Untick a dish when it runs out — it disappears from guests\' menus straight away. Tomorrow you will be asked whether to bring it back.'),
+    ...m.categories.flatMap((c) => [h('h2', {}, c.name), ...m.items.filter((i) => i.category === c.id).map(toggle)])];
 }
 
 async function customers() {
@@ -77,9 +109,9 @@ async function customers() {
 
 async function load() {
   try {
-    const body = await ({ orders, tables, customers }[tab])();
+    const body = await ({ orders, tables, menu: menuTab, customers }[tab])();
     app.replaceChildren(nav(), ...body.filter(Boolean));
   } catch (e) { if (e.status === 401) login(pw ? 'Wrong password' : ''); }
 }
-function start() { clearInterval(timer); load(); timer = setInterval(() => pw && tab !== 'customers' && load(), 3000); }
+function start() { clearInterval(timer); load(); timer = setInterval(() => pw && (tab === 'orders' || tab === 'tables') && load(), 3000); }
 start();

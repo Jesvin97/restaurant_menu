@@ -2,9 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
-const menu = require('./menu.json');
-
-const itemsById = new Map(menu.items.map((i) => [i.id, i]));
+const defaultMenu = require('./menu.json');
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 const rid = (n = 8) => crypto.randomBytes(n).toString('hex');
 
@@ -13,7 +11,7 @@ class Store {
     this.file = file;
     this.persist = opts.persist !== false;
     this.now = opts.now || (() => Date.now());
-    this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0 };
+    this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0, menu: null, unavailable: {} };
     if (this.persist && fs.existsSync(file)) {
       try { this.state = { ...this.state, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* start fresh */ }
     }
@@ -22,7 +20,56 @@ class Store {
     for (let i = 1; i <= config.tableCount; i++) {
       this.state.tables[i] = this.state.tables[i] || { session: null, pending: [] };
     }
+    this.setMenu(this.state.menu || defaultMenu, false);
     this.save();
+  }
+
+  // ---- menu & availability ---------------------------------------------
+  setMenu(menu, persist = true) {
+    this.menu = menu;
+    if (persist) this.state.menu = menu; // only imported menus are persisted; the default stays in menu.json
+    this.itemsById = new Map(menu.items.map((i) => [i.id, i]));
+    // Forget availability flags for dishes that no longer exist.
+    for (const id of Object.keys(this.state.unavailable)) if (!this.itemsById.has(id)) delete this.state.unavailable[id];
+    if (persist) this.save();
+  }
+
+  today() { return new Date(this.now()).toLocaleDateString('en-CA', { timeZone: config.timezone }); }
+
+  /** Menu as guests see it: unavailable dishes are removed entirely. */
+  publicMenu() {
+    const m = this.menu;
+    const items = m.items.filter((i) => !this.state.unavailable[i.id]);
+    const used = new Set(items.map((i) => i.category));
+    return { categories: m.categories.filter((c) => used.has(c.id)), items };
+  }
+
+  adminMenu() {
+    return { ...this.menu, items: this.menu.items.map((i) => ({ ...i, available: !this.state.unavailable[i.id] })) };
+  }
+
+  setAvailability(itemId, available) {
+    if (!this.itemsById.has(itemId)) return { ok: false, status: 404, error: 'unknown dish' };
+    if (available) delete this.state.unavailable[itemId];
+    else this.state.unavailable[itemId] = { since: this.today(), prompted: false };
+    this.save();
+    return { ok: true };
+  }
+
+  /** Next-day prompts: dishes hidden on an earlier day that staff haven't been asked about yet. */
+  restockNotices() {
+    const today = this.today();
+    return Object.entries(this.state.unavailable)
+      .filter(([, u]) => u.since !== today && !u.prompted)
+      .map(([id, u]) => ({ itemId: id, name: this.itemsById.get(id).name, since: u.since }));
+  }
+
+  answerRestock(itemId, bringBack) {
+    const u = this.state.unavailable[itemId];
+    if (!u) return { ok: false, status: 404, error: 'not hidden' };
+    if (bringBack) delete this.state.unavailable[itemId]; else u.prompted = true; // 'no' = stay hidden, don't ask again
+    this.save();
+    return { ok: true };
   }
 
   save() {
@@ -131,7 +178,11 @@ class Store {
       return { state: t.pending.some((p) => p.token === h) ? 'pending' : 'closed' };
     }
     if (!s.members.includes(h)) return { state: 'needs_code' };
-    return { state: s.status === 'billed' ? 'billed' : 'active', code: s.code, orders: s.orders, bill: this.bill(s), customer: s.customer ? { name: s.customer.name } : null, requireContact: config.requireContact };
+    const base = { code: s.code, customer: s.customer ? { name: s.customer.name } : null, requireContact: config.requireContact };
+    // Guests only see what they ordered (names, quantities, kitchen status) - never prices or totals - until the counter bills.
+    const orders = s.orders.map((o) => ({ id: o.id, at: o.at, status: o.status, items: o.items.map((i) => ({ name: i.name, qty: i.qty, veg: i.veg })) }));
+    const state = { open: 'active', closing: 'closing', billed: 'billed' }[s.status];
+    return { state, orders, ...base, ...(s.status === 'billed' ? { bill: this.bill(s) } : {}) };
   }
 
   placeOrder(tableId, token, lines) {
@@ -140,20 +191,22 @@ class Store {
     this._expire(t);
     const s = t.session;
     if (!s || !s.members.includes(sha(token || ''))) return { ok: false, status: 403, error: 'Your table session is not active. Please scan the QR again.' };
-    if (s.status !== 'open') return { ok: false, status: 409, error: 'The bill has been generated; ordering is closed.' };
+    if (s.status !== 'open') return { ok: false, status: 409, error: 'The bill has been requested; ordering is closed.' };
     if (!Array.isArray(lines) || !lines.length || lines.length > 60) return { ok: false, status: 400, error: 'Empty order' };
     const merged = new Map();
     for (const l of lines) {
-      const item = itemsById.get(Number(l && l.id));
+      const item = this.itemsById.get(String(l && l.id));
       const qty = Number(l && l.qty);
-      if (!item || !Number.isInteger(qty) || qty < 1 || qty > 20) return { ok: false, status: 400, error: 'Invalid item' };
-      merged.set(item.id, (merged.get(item.id) || 0) + qty);
+      const opt = item && item.options.find((o) => o.id === (l.opt || item.options[0].id));
+      if (!item || !opt || !Number.isInteger(qty) || qty < 1 || qty > 20) return { ok: false, status: 400, error: 'Invalid item' };
+      if (this.state.unavailable[item.id]) return { ok: false, status: 409, error: `${item.name} is not available right now`, unavailable: item.id };
+      const key = `${item.id}|${opt.id}`;
+      merged.set(key, { item, opt, qty: (merged.has(key) ? merged.get(key).qty : 0) + qty });
     }
     // Prices always come from the server menu, never from the client.
-    const items = [...merged].map(([id, qty]) => {
-      const i = itemsById.get(id);
-      return { id, name: i.name, veg: i.veg, price: i.price, qty };
-    });
+    const items = [...merged.values()].map(({ item, opt, qty }) => ({
+      id: item.id, opt: opt.id, name: item.name + (opt.label ? ` (${opt.label})` : ''), veg: item.veg, price: opt.price, qty,
+    }));
     const order = { id: rid(4), seq: ++this.state.seq, at: this.now(), status: 'new', items };
     s.orders.push(order);
     s.lastActive = this.now();
@@ -198,8 +251,24 @@ class Store {
     if (!s || !s.members.includes(sha(token || ''))) return { ok: false, status: 403, error: 'Your table session is not active.' };
     if (!s.orders.length) return { ok: false, status: 400, error: 'Nothing ordered yet' };
     if (config.requireContact && !s.customer) return { ok: false, status: 400, error: 'Name and mobile number are required for the bill' };
-    s.status = 'billed';
+    if (s.status === 'open') {
+      // The guest never sees a total here: this only notifies the counter, which generates the bill.
+      s.status = 'closing';
+      s.billRequestedAt = this.now();
+      s.billSeq = ++this.state.seq;
+    }
     s.lastActive = this.now();
+    this.save();
+    return { ok: true, status: s.status };
+  }
+
+  /** Counter action: lock ordering and reveal the total to the guest. */
+  generateBill(tableId) {
+    const t = this.table(tableId);
+    const s = t && t.session;
+    if (!s) return { ok: false, status: 404, error: 'no session' };
+    if (!s.orders.length) return { ok: false, status: 400, error: 'Nothing ordered yet' };
+    s.status = 'billed';
     this.save();
     return { ok: true, bill: this.bill(s) };
   }
@@ -207,9 +276,10 @@ class Store {
   bill(s) {
     const lines = new Map();
     for (const o of s.orders) for (const i of o.items) {
-      const l = lines.get(i.id) || { ...i, qty: 0 };
+      const k = `${i.id}|${i.opt}`;
+      const l = lines.get(k) || { ...i, qty: 0 };
       l.qty += i.qty;
-      lines.set(i.id, l);
+      lines.set(k, l);
     }
     const items = [...lines.values()].map((l) => ({ ...l, amount: l.price * l.qty }));
     const subtotal = items.reduce((a, l) => a + l.amount, 0);
@@ -237,7 +307,10 @@ class Store {
       if (t.session) for (const o of t.session.orders) orders.push({ ...o, tableId, customer: t.session.customer ? t.session.customer.name : null });
     }
     orders.sort((a, b) => a.seq - b.seq);
-    return { orders, lastSeq: this.state.seq, waiting: Object.entries(this.state.tables).filter(([, t]) => t.pending.length).map(([id]) => id) };
+    const billRequests = Object.entries(this.state.tables)
+      .filter(([, t]) => t.session && t.session.status === 'closing')
+      .map(([tableId, t]) => ({ tableId, at: t.session.billRequestedAt, seq: t.session.billSeq, customer: t.session.customer ? t.session.customer.name : null, total: this.bill(t.session).total }));
+    return { orders, billRequests, restock: this.restockNotices(), lastSeq: this.state.seq, waiting: Object.entries(this.state.tables).filter(([, t]) => t.pending.length).map(([id]) => id) };
   }
 
   setOrderStatus(tableId, orderId, status) {
@@ -293,6 +366,7 @@ class Store {
     const t = this.table(tableId);
     if (!t || !t.session) return { ok: false, status: 404, error: 'no session' };
     t.session.status = 'open';
+    t.session.billRequestedAt = null;
     this.save();
     return { ok: true };
   }
@@ -306,4 +380,4 @@ class Store {
   }
 }
 
-module.exports = { Store, menu, sha };
+module.exports = { Store, sha };

@@ -20,6 +20,7 @@
   },
   "homepage": "https://github.com/Jesvin97/restaurant_menu#readme",
   "dependencies": {
+    "exceljs": "^4.4.0",
     "qrcode": "^1.5.4"
   }
 }

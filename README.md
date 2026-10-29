@@ -7,7 +7,7 @@ Zero-framework Node app (only dependency: `qrcode`, used to print QR codes).
 | QR | URL | Behaviour |
 |----|-----|-----------|
 | **Counter** | `/menu` | Read-only menu: prices, veg/non-veg filter, sections (Breakfast, Lunch, Biryani, Breads, Grills, Chinese, Desserts, Beverages), search. |
-| **Table** (static, one per table) | `/t/<n>?s=<signature>` | Ordering. Orders attach to that table; cart -> one click **Order & get bill** (GST included). |
+| **Table** (static, one per table) | `/t/<n>?s=<signature>` | Ordering. Orders attach to that table. Guests build a cart, review it, and **Send to kitchen**; they only ever see dish names and quantities (no prices/totals). When done they tap **Ask for bill**; the counter is notified and generates the bill, which then appears on the guest's phone. |
 
 ## Why a leaving guest can't reorder on the same URL
 
@@ -27,6 +27,12 @@ ADMIN_PASSWORD=choose-one BASE_URL=https://your.domain QR_SECRET=long-random npm
 npm run qr     # writes printable SVGs to qr/ (counter.svg, table-1.svg ...)
 npm test
 ```
+
+## Menu management (Staff -> Menu tab)
+
+- **Out of stock:** untick a dish and it disappears from every guest menu immediately (orders for it are rejected). The next day the Live orders tab asks "show it again?": *Yes* restores it, *No* keeps it hidden and it isn't asked again (re-enable any time from the Menu tab).
+- **Excel upload:** columns `Category, Name, Description, Type (Veg/Non-Veg), Half, Full` (or a single `Price`), `Allergens` (comma separated, e.g. `dairy, gluten`). *Check file* previews and reports row-level errors; *Replace my menu* applies it. A CSV template is downloadable. On a normal server the imported menu is saved in the state file.
+- **Allergy filter:** guests tap *Allergies*, choose what to avoid, and dishes whose Allergens column lists it are hidden (remembered on their phone). It relies on the kitchen's data, and the UI says so.
 
 ## Staff dashboard (`/admin`)
 

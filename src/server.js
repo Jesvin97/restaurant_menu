@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
-const { Store, menu } = require('./store');
+const { Store } = require('./store');
+const { parseRows, parseCsv, normalize, TEMPLATE_CSV } = require('./menu');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.json': 'application/json' };
@@ -15,6 +16,28 @@ function toCsv(rows) {
   const cols = ['name', 'phone', 'consentReview', 'consentOffers', 'visits', 'spent', 'lastVisit', 'reviewRequestedAt'];
   const date = (t) => (t ? new Date(t).toISOString() : '');
   return [cols.join(','), ...rows.map((r) => cols.map((c) => csvCell(c.endsWith('Visit') || c.endsWith('At') ? date(r[c]) : r[c])).join(','))].join('\n') + '\n';
+}
+
+async function parseUpload(buf, kind) {
+  try {
+    let rows;
+    if (kind === 'csv') rows = parseCsv(buf.toString('utf8'));
+    else {
+      const ExcelJS = require('exceljs'); // loaded lazily: only staff imports need it
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(buf);
+      const ws = wb.worksheets[0];
+      if (!ws) return { errors: ['The workbook is empty'] };
+      rows = [];
+      ws.eachRow({ includeEmpty: false }, (row) => {
+        const vals = row.values.slice(1).map((v) => (v && typeof v === 'object' ? (v.result ?? v.text ?? (v.richText ? v.richText.map((x) => x.text).join('') : '')) : v));
+        rows.push(vals);
+      });
+    }
+    return parseRows(rows);
+  } catch {
+    return { errors: ['Could not read the file. Upload an .xlsx or .csv exported from Excel.'] };
+  }
 }
 
 function createServer(store = new Store()) {
@@ -55,6 +78,12 @@ function createServer(store = new Store()) {
     try { return JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch { throw Object.assign(new Error('Bad JSON'), { status: 400 }); }
   }
 
+  async function readBuffer(req, max) {
+    let size = 0; const chunks = [];
+    for await (const c of req) { size += c.length; if (size > max) throw Object.assign(new Error('File too large (max 3 MB)'), { status: 413 }); chunks.push(c); }
+    return Buffer.concat(chunks);
+  }
+
   const reply = (res, r) => (r.ok === false ? send(res, r.status || 400, { error: r.error }) : send(res, 200, r));
 
   function serveFile(res, file) {
@@ -80,7 +109,7 @@ function createServer(store = new Store()) {
       }
       if (req.method === 'GET' && p.startsWith('/static/')) return serveFile(res, p.slice(8));
 
-      if (req.method === 'GET' && p === '/api/menu') return send(res, 200, { ...menu, taxPercent: config.taxPercent });
+      if (req.method === 'GET' && p === '/api/menu') return send(res, 200, store.publicMenu());
 
       // ---- guest table API ----
       if ((m = p.match(/^\/api\/table\/(\d+)\/(enter|join|state|order|bill|contact)$/))) {
@@ -110,6 +139,24 @@ function createServer(store = new Store()) {
       if (p.startsWith('/api/admin/')) {
         if (!isAdmin(req)) return send(res, 401, { error: 'Unauthorized' });
         if (req.method === 'GET' && p === '/api/admin/tables') return send(res, 200, { tables: store.adminTables(), baseUrl: config.baseUrl });
+        if (req.method === 'GET' && p === '/api/admin/menu') return send(res, 200, store.adminMenu());
+        if (req.method === 'GET' && p === '/api/admin/menu-template.csv') return send(res, 200, TEMPLATE_CSV, { 'Content-Type': 'text/csv; charset=utf-8' });
+        if (req.method === 'POST' && p === '/api/admin/menu/availability') {
+          const body = await readJson(req);
+          return reply(res, store.setAvailability(String(body.itemId), body.available === true));
+        }
+        if (req.method === 'POST' && p === '/api/admin/menu/restock') {
+          const body = await readJson(req);
+          return reply(res, store.answerRestock(String(body.itemId), body.bringBack === true));
+        }
+        if (req.method === 'POST' && p === '/api/admin/menu/import') {
+          const kind = url.searchParams.get('type') === 'csv' ? 'csv' : 'xlsx';
+          const r = await parseUpload(await readBuffer(req, 3e6), kind);
+          if (r.errors.length) return send(res, 422, { error: r.errors.slice(0, 10).join('\n'), errors: r.errors.slice(0, 50) });
+          const summary = { dishes: r.menu.items.length, categories: r.menu.categories.map((c) => c.name), sample: r.menu.items.slice(0, 5).map((i) => i.name) };
+          if (url.searchParams.get('apply') === '1') store.setMenu(normalize(r.menu));
+          return send(res, 200, { ok: true, applied: url.searchParams.get('apply') === '1', ...summary });
+        }
         if (req.method === 'GET' && p === '/api/admin/orders') return send(res, 200, store.adminOrders());
         if (req.method === 'GET' && p === '/api/admin/customers') return send(res, 200, { customers: store.customers(), reviewUrl: config.googleReviewUrl, restaurant: config.restaurantName });
         if (req.method === 'GET' && p === '/api/admin/customers.csv') {
@@ -125,10 +172,11 @@ function createServer(store = new Store()) {
           await readJson(req);
           return reply(res, m[2] === 'delete' ? store.deleteCustomer(m[1]) : store.markReviewRequested(m[1]));
         }
-        if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/tables\/(\d+)\/(seat|close|reopen|void)$/))) {
+        if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/tables\/(\d+)\/(seat|close|reopen|void|bill)$/))) {
           const body = await readJson(req);
           const [, id, act] = m;
           if (act === 'seat') return reply(res, store.seat(id));
+          if (act === 'bill') return reply(res, store.generateBill(id));
           if (act === 'close') return reply(res, store.closeTable(id));
           if (act === 'reopen') return reply(res, store.reopen(id));
           return reply(res, store.voidOrder(id, body.orderId));

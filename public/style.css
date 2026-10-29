@@ -31,3 +31,9 @@ table.a{width:100%;border-collapse:collapse}table.a td,table.a th{padding:8px;bo
 .new{animation:flash 1.2s 3}@keyframes flash{50%{background:#fde68a55}}
 .ord{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}.ord.s-new{border-color:var(--acc);border-width:2px}
 .tabs{display:flex;gap:8px;margin-bottom:12px}
+.seg{display:flex;border:1px solid var(--line);border-radius:99px;overflow:hidden;flex:none}.seg button{border:0;background:var(--card);color:var(--ink);padding:7px 12px;font:inherit;cursor:pointer}
+.seg button.on{background:var(--ink);color:var(--bg)}.seg button.on.veg{background:var(--veg);color:#fff}.seg button.on.nonveg{background:var(--nv);color:#fff}
+.filters{align-items:center}.filters input{min-width:90px;flex:1}.opt{display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px}
+.note{margin:12px 0 0}.line{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.btn.warn{background:#b45309}.ok{color:var(--veg)}.notice{border:2px solid var(--acc);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--card);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.notice span{flex:1;min-width:160px}
+.off{opacity:.55}.file{margin:12px 0}
