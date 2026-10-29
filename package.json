@@ -1,0 +1,25 @@
+{
+  "name": "restaurant-qr-menu",
+  "version": "1.0.0",
+  "description": "QR menu (counter) and QR table ordering with per-table sessions",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "qr": "node scripts/generate-qr.js",
+    "test": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jesvin97/restaurant_menu.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jesvin97/restaurant_menu/issues"
+  },
+  "homepage": "https://github.com/Jesvin97/restaurant_menu#readme",
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

@@ -1,0 +1,3 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Our Menu</title><link rel="stylesheet" href="/static/style.css"></head>
+<body><header><h1>Our Menu</h1><div class="sub">Browse only — please order at the counter. Prices in ₹.</div></header><div id="app"></div>
+<script src="/static/common.js"></script><script>api('/api/menu').then((m) => renderMenu(document.getElementById('app'), m))</script></body></html>
