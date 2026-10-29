@@ -88,3 +88,45 @@ test('http: signed table link, cookies and admin auth', async () => {
     assert.equal((await fetch(`${base}/api/table/1/order`, { method: 'POST', body: '{}' })).status, 415);
   } finally { srv.close(); }
 });
+
+test('order feed: new orders appear for staff with status workflow', () => {
+  const s = mk();
+  s.enter('1', 'A'); s.seat('1'); s.enter('2', 'B'); s.seat('2');
+  s.placeOrder('1', 'A', order); s.placeOrder('2', 'B', [{ id: 3, qty: 1 }]);
+  const f = s.adminOrders();
+  assert.deepEqual(f.orders.map((o) => [o.tableId, o.status]), [['1', 'new'], ['2', 'new']]);
+  assert.ok(s.setOrderStatus('1', f.orders[0].id, 'kitchen').ok);
+  assert.equal(s.view('1', 'A').orders[0].status, 'kitchen');
+  assert.equal(s.setOrderStatus('1', f.orders[0].id, 'bogus').ok, false);
+});
+
+test('contact details: validated, consent-gated, saved on payment, deletable', () => {
+  const s = mk();
+  s.enter('1', 'A'); s.seat('1'); s.placeOrder('1', 'A', order);
+  assert.equal(s.setContact('1', 'A', { name: 'Asha', phone: '12345' }).ok, false);
+  assert.ok(s.setContact('1', 'A', { name: 'Asha <b>', phone: '+91 98765-43210', review: true }).ok);
+  assert.equal(s.requestBill('1', 'A').ok, true);
+  assert.equal(s.view('1', 'A').customer.name, 'Asha b');
+  s.closeTable('1');
+  const [c] = s.customers();
+  assert.equal(c.phone, '+919876543210');
+  assert.equal(c.consentReview, true);
+  assert.equal(c.consentOffers, false); // never defaulted on
+  assert.equal(c.visits, 1);
+  s.deleteCustomer(c.phone);
+  assert.equal(s.customers().length, 0);
+  assert.equal(s.state.history[0].customerPhone, undefined);
+});
+
+test('http: customers CSV needs staff auth and neutralises formulas', async () => {
+  const store = mk();
+  store.state.customers['+919876543210'] = { phone: '+919876543210', name: '=HYPERLINK("x")', consentOffers: true, consentReview: false, visits: 1, spent: 100, lastVisit: 0 };
+  const srv = createServer(store).listen(0);
+  const base = `http://127.0.0.1:${srv.address().port}/api/admin/customers.csv?for=offers`;
+  try {
+    assert.equal((await fetch(base)).status, 401);
+    const txt = await (await fetch(base, { headers: { 'x-admin-password': 'admin123' } })).text();
+    assert.match(txt, /"'=HYPERLINK/);
+    assert.match(txt, /\+919876543210/);
+  } finally { srv.close(); }
+});

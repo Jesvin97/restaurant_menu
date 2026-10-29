@@ -9,6 +9,14 @@ const PUBLIC = path.join(__dirname, '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const PAGES = { '/menu': 'menu.html', '/admin': 'admin.html' };
 
+// Neutralise spreadsheet formula injection (=,+,-,@) in exported guest-supplied text.
+const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s) && !/^\+91\d{10}$/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+function toCsv(rows) {
+  const cols = ['name', 'phone', 'consentReview', 'consentOffers', 'visits', 'spent', 'lastVisit', 'reviewRequestedAt'];
+  const date = (t) => (t ? new Date(t).toISOString() : '');
+  return [cols.join(','), ...rows.map((r) => cols.map((c) => csvCell(c.endsWith('Visit') || c.endsWith('At') ? date(r[c]) : r[c])).join(','))].join('\n') + '\n';
+}
+
 function createServer(store = new Store()) {
   const send = (res, code, body, headers = {}) => {
     const isObj = typeof body === 'object' && !Buffer.isBuffer(body);
@@ -75,7 +83,7 @@ function createServer(store = new Store()) {
       if (req.method === 'GET' && p === '/api/menu') return send(res, 200, { ...menu, taxPercent: config.taxPercent });
 
       // ---- guest table API ----
-      if ((m = p.match(/^\/api\/table\/(\d+)\/(enter|join|state|order|bill)$/))) {
+      if ((m = p.match(/^\/api\/table\/(\d+)\/(enter|join|state|order|bill|contact)$/))) {
         const [, id, action] = m;
         const tok = deviceToken(req, res);
         if (action === 'state' && req.method === 'GET') return send(res, 200, store.view(id, tok));
@@ -87,7 +95,9 @@ function createServer(store = new Store()) {
         }
         if (action === 'join') return reply(res, store.join(id, tok, body.code));
         if (action === 'order') return reply(res, store.placeOrder(id, tok, body.items));
+        if (action === 'contact') return reply(res, store.setContact(id, tok, body.contact));
         if (action === 'bill') {
+          if (body.contact) { const c = store.setContact(id, tok, body.contact); if (c.ok === false) return reply(res, c); }
           if (Array.isArray(body.items) && body.items.length) {
             const o = store.placeOrder(id, tok, body.items);
             if (o.ok === false) return reply(res, o);
@@ -100,6 +110,21 @@ function createServer(store = new Store()) {
       if (p.startsWith('/api/admin/')) {
         if (!isAdmin(req)) return send(res, 401, { error: 'Unauthorized' });
         if (req.method === 'GET' && p === '/api/admin/tables') return send(res, 200, { tables: store.adminTables(), baseUrl: config.baseUrl });
+        if (req.method === 'GET' && p === '/api/admin/orders') return send(res, 200, store.adminOrders());
+        if (req.method === 'GET' && p === '/api/admin/customers') return send(res, 200, { customers: store.customers(), reviewUrl: config.googleReviewUrl, restaurant: config.restaurantName });
+        if (req.method === 'GET' && p === '/api/admin/customers.csv') {
+          const only = url.searchParams.get('for'); // 'offers' | 'review' | all
+          const rows = store.customers().filter((c) => only === 'offers' ? c.consentOffers : only === 'review' ? c.consentReview : true);
+          return send(res, 200, toCsv(rows), { 'Content-Type': 'text/csv; charset=utf-8' });
+        }
+        if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/orders\/(\d+)\/([a-f0-9]+)\/status$/))) {
+          const body = await readJson(req);
+          return reply(res, store.setOrderStatus(m[1], m[2], body.status));
+        }
+        if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/customers\/(\+91\d{10})\/(review-sent|delete)$/))) {
+          await readJson(req);
+          return reply(res, m[2] === 'delete' ? store.deleteCustomer(m[1]) : store.markReviewRequested(m[1]));
+        }
         if (req.method === 'POST' && (m = p.match(/^\/api\/admin\/tables\/(\d+)\/(seat|close|reopen|void)$/))) {
           const body = await readJson(req);
           const [, id, act] = m;

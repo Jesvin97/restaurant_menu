@@ -13,7 +13,7 @@ class Store {
     this.file = file;
     this.persist = opts.persist !== false;
     this.now = opts.now || (() => Date.now());
-    this.state = { secret: '', tables: {}, history: [] };
+    this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0 };
     if (this.persist && fs.existsSync(file)) {
       try { this.state = { ...this.state, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* start fresh */ }
     }
@@ -56,11 +56,24 @@ class Store {
     const s = t.session;
     if (!s) return;
     if (s.orders.length) {
-      this.state.history.push({ ...this.bill(s), sessionId: s.id, closedAt: this.now(), reason });
+      if (s.customer) this._recordCustomer(s.customer, this.bill(s).total);
+      this.state.history.push({ ...this.bill(s), sessionId: s.id, closedAt: this.now(), reason, customerPhone: s.customer && s.customer.phone });
       this.state.history = this.state.history.slice(-2000);
     }
     // Dropping the session invalidates every device token that belonged to it.
     t.session = null;
+  }
+
+  _recordCustomer(c, total) {
+    const prev = this.state.customers[c.phone];
+    this.state.customers[c.phone] = {
+      phone: c.phone, name: c.name,
+      // Latest choice wins, so a guest can withdraw consent on a later visit.
+      consentReview: c.consentReview, consentOffers: c.consentOffers, consentAt: c.consentAt,
+      visits: (prev ? prev.visits : 0) + 1, spent: (prev ? prev.spent : 0) + total,
+      firstVisit: prev ? prev.firstVisit : this.now(), lastVisit: this.now(),
+      reviewRequestedAt: prev ? prev.reviewRequestedAt || null : null,
+    };
   }
 
   _open(t, tokenHash) {
@@ -118,7 +131,7 @@ class Store {
       return { state: t.pending.some((p) => p.token === h) ? 'pending' : 'closed' };
     }
     if (!s.members.includes(h)) return { state: 'needs_code' };
-    return { state: s.status === 'billed' ? 'billed' : 'active', code: s.code, orders: s.orders, bill: this.bill(s) };
+    return { state: s.status === 'billed' ? 'billed' : 'active', code: s.code, orders: s.orders, bill: this.bill(s), customer: s.customer ? { name: s.customer.name } : null, requireContact: config.requireContact };
   }
 
   placeOrder(tableId, token, lines) {
@@ -141,11 +154,40 @@ class Store {
       const i = itemsById.get(id);
       return { id, name: i.name, veg: i.veg, price: i.price, qty };
     });
-    const order = { id: rid(4), at: this.now(), items };
+    const order = { id: rid(4), seq: ++this.state.seq, at: this.now(), status: 'new', items };
     s.orders.push(order);
     s.lastActive = this.now();
     this.save();
     return { ok: true, order };
+  }
+
+  static normalizePhone(raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    if (d.length === 12 && d.startsWith('91')) d = d.slice(2);
+    else if (d.length === 11 && d.startsWith('0')) d = d.slice(1);
+    return /^[6-9]\d{9}$/.test(d) ? '+91' + d : null;
+  }
+
+  /** Validates guest contact details. Marketing flags are only true when explicitly ticked. */
+  static cleanContact(c) {
+    const name = String((c && c.name) || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
+    const phone = Store.normalizePhone(c && c.phone);
+    if (!name || !phone) return null;
+    return { name, phone, consentReview: c.review === true, consentOffers: c.offers === true, consentAt: null };
+  }
+
+  setContact(tableId, token, contact) {
+    const t = this.table(tableId);
+    if (!t) return { ok: false, status: 404, error: 'invalid table' };
+    this._expire(t);
+    const s = t.session;
+    if (!s || !s.members.includes(sha(token || ''))) return { ok: false, status: 403, error: 'Your table session is not active.' };
+    const c = Store.cleanContact(contact);
+    if (!c) return { ok: false, status: 400, error: 'Enter your name and a valid 10-digit mobile number' };
+    c.consentAt = this.now();
+    s.customer = c;
+    this.save();
+    return { ok: true };
   }
 
   requestBill(tableId, token) {
@@ -155,6 +197,7 @@ class Store {
     const s = t.session;
     if (!s || !s.members.includes(sha(token || ''))) return { ok: false, status: 403, error: 'Your table session is not active.' };
     if (!s.orders.length) return { ok: false, status: 400, error: 'Nothing ordered yet' };
+    if (config.requireContact && !s.customer) return { ok: false, status: 400, error: 'Name and mobile number are required for the bill' };
     s.status = 'billed';
     s.lastActive = this.now();
     this.save();
@@ -184,6 +227,44 @@ class Store {
         session: s && { id: s.id, status: s.status, code: s.code, devices: s.members.length, openedAt: s.openedAt, orders: s.orders, bill: this.bill(s) },
       };
     });
+  }
+
+  /** Live feed for the counter/kitchen screen: every open order across all tables, oldest first. */
+  adminOrders() {
+    const orders = [];
+    for (const [tableId, t] of Object.entries(this.state.tables)) {
+      this._expire(t);
+      if (t.session) for (const o of t.session.orders) orders.push({ ...o, tableId, customer: t.session.customer ? t.session.customer.name : null });
+    }
+    orders.sort((a, b) => a.seq - b.seq);
+    return { orders, lastSeq: this.state.seq, waiting: Object.entries(this.state.tables).filter(([, t]) => t.pending.length).map(([id]) => id) };
+  }
+
+  setOrderStatus(tableId, orderId, status) {
+    const t = this.table(tableId);
+    const o = t && t.session && t.session.orders.find((x) => x.id === orderId);
+    if (!o) return { ok: false, status: 404, error: 'order not found' };
+    if (!['new', 'kitchen', 'served'].includes(status)) return { ok: false, status: 400, error: 'bad status' };
+    o.status = status;
+    this.save();
+    return { ok: true };
+  }
+
+  customers() {
+    return Object.values(this.state.customers).sort((a, b) => b.lastVisit - a.lastVisit);
+  }
+  markReviewRequested(phone) {
+    const c = this.state.customers[phone];
+    if (!c) return { ok: false, status: 404, error: 'not found' };
+    c.reviewRequestedAt = this.now();
+    this.save();
+    return { ok: true };
+  }
+  deleteCustomer(phone) {
+    delete this.state.customers[phone];
+    this.state.history.forEach((h) => { if (h.customerPhone === phone) delete h.customerPhone; });
+    this.save();
+    return { ok: true };
   }
 
   seat(tableId) {

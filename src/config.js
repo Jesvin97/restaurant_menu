@@ -15,5 +15,8 @@ module.exports = {
   sessionIdleHours: num(process.env.SESSION_IDLE_HOURS, 4),
   qrSecret: process.env.QR_SECRET || '',
   stateFile: process.env.STATE_FILE || path.join(__dirname, '..', 'data', 'state.json'),
+  googleReviewUrl: process.env.GOOGLE_REVIEW_URL || '',
+  restaurantName: process.env.RESTAURANT_NAME || 'our restaurant',
+  requireContact: process.env.REQUIRE_CONTACT === '1',
   cookieSecure: process.env.COOKIE_SECURE === '1',
 };

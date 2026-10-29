@@ -28,9 +28,22 @@ npm run qr     # writes printable SVGs to qr/ (counter.svg, table-1.svg ...)
 npm test
 ```
 
-Staff dashboard: `/admin` (seat guests, see orders, void an order, reopen a bill, paid & close).
+## Staff dashboard (`/admin`)
 
-Env: `PORT`, `BASE_URL`, `TABLE_COUNT` (12), `TAX_PERCENT` (5), `ADMIN_PASSWORD`, `AUTO_SEAT`, `SESSION_IDLE_HOURS`, `QR_SECRET`, `STATE_FILE`, `COOKIE_SECURE=1` (set behind HTTPS).
+- **Live orders** - every table's orders land here within ~3 s, with a beep. Move each through *New -> Sent to kitchen -> Served*; guests see the status on their phone. Leave this open on the counter screen (click once on the page so the browser allows the beep).
+- **Tables** - seat waiting guests, void an order, reopen a bill, *Paid & close*.
+- **Customers** - guests who gave name + number when the bill was generated (the bill is printed in their name).
+
+## Guest details, reviews and ads
+
+At "Get bill" the guest is asked for name and mobile (skippable unless `REQUIRE_CONTACT=1`) plus two **separate, unticked-by-default** consents: a Google-review message, and offers. Rules built in:
+
+- Numbers are only used for the purpose the guest ticked; a later visit's choice overrides the earlier one (withdrawal works).
+- *Customers -> Send review link* opens WhatsApp with a pre-filled message (needs `GOOGLE_REVIEW_URL`); staff press send. No SMS/WhatsApp provider is wired in - plug one in later if you want automatic sending.
+- CSV exports are split by consent: **offers-consented** (use for Meta/Google ad custom audiences - they match on hashed phone numbers), review-consented, and all (billing records only). Cells are protected against spreadsheet formula injection.
+- Staff can **delete** a guest's details on request. Check local rules (India's DPDP Act, TRAI rules for promotional SMS) before running campaigns.
+
+Env: `PORT`, `BASE_URL`, `TABLE_COUNT` (12), `TAX_PERCENT` (5), `ADMIN_PASSWORD`, `AUTO_SEAT`, `SESSION_IDLE_HOURS`, `QR_SECRET`, `STATE_FILE`, `GOOGLE_REVIEW_URL`, `RESTAURANT_NAME`, `REQUIRE_CONTACT`, `COOKIE_SECURE=1` (set behind HTTPS).
 Keep `QR_SECRET` stable: changing it invalidates printed table QRs. Edit the menu in `src/menu.json`.
 
 Notes: state is a single JSON file (single process); serve over HTTPS in production.

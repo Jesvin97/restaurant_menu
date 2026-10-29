@@ -23,3 +23,11 @@ main{padding:0 16px}h2{margin:22px 0 8px;font-size:1.05rem;color:var(--acc)}
 .tag{font-size:.8rem;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-left:6px}
 table.a{width:100%;border-collapse:collapse}table.a td,table.a th{padding:8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
 .small{font-size:.85rem;padding:5px 10px;flex:none}
+
+.overlay{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-end;z-index:20}
+.sheet{background:var(--bg);width:100%;border-radius:16px 16px 0 0;padding:18px 16px 24px;max-height:92vh;overflow:auto}
+.sheet input:not([type=checkbox]){width:100%;padding:12px;margin:6px 0;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
+.chk{display:flex;gap:8px;align-items:flex-start;margin:8px 0;font-size:.92rem}.chk input{margin-top:3px}
+.new{animation:flash 1.2s 3}@keyframes flash{50%{background:#fde68a55}}
+.ord{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}.ord.s-new{border-color:var(--acc);border-width:2px}
+.tabs{display:flex;gap:8px;margin-bottom:12px}

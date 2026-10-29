@@ -20,11 +20,32 @@ function cartLines() { return [...cart].map(([id, qty]) => ({ id, qty })); }
 function cartTotal() { return [...cart].reduce((a, [id, q]) => a + menu.items.find((i) => i.id === id).price * q, 0); }
 
 function billCard(bill, final) {
-  return h('div', { class: 'bill' }, h('h2', { style: 'margin-top:0' }, final ? 'Your bill' : 'Ordered so far'),
+  return h('div', { class: 'bill' }, h('h2', { style: 'margin-top:0' }, final ? 'Your bill' : 'Ordered so far'), view.customer && h('div', { class: 'sub' }, 'Billed to ' + view.customer.name),
     h('table', {}, ...bill.items.map((l) => h('tr', {}, h('td', {}, dot(l.veg), ' ', `${l.qty} × ${l.name}`), h('td', {}, rupee(l.amount)))),
       h('tr', { class: 'tot' }, h('td', {}, 'Subtotal'), h('td', {}, rupee(bill.subtotal))),
       h('tr', {}, h('td', {}, `GST ${bill.taxPercent}%`), h('td', {}, rupee(bill.tax))),
       h('tr', { class: 'tot' }, h('td', {}, 'Total'), h('td', {}, rupee(bill.total)))));
+}
+
+function contactForm(onDone) {
+  const name = h('input', { placeholder: 'Your name', autocomplete: 'name', maxlength: 60 });
+  const phone = h('input', { placeholder: 'Mobile number', type: 'tel', inputmode: 'numeric', autocomplete: 'tel', maxlength: 15 });
+  const review = h('input', { type: 'checkbox' }), offers = h('input', { type: 'checkbox' });
+  const err = h('div', { class: 'err' });
+  const close = () => ov.remove();
+  const submit = (skip) => {
+    if (skip && view.requireContact) { err.textContent = 'Name and mobile number are needed for the bill.'; return; }
+    if (!skip && (!name.value.trim() || !/^\D*(91|0)?\D*[6-9](\D*\d){9}\D*$/.test(phone.value))) { err.textContent = 'Please enter your name and a valid 10-digit mobile number.'; return; }
+    close(); onDone(skip ? null : { name: name.value, phone: phone.value, review: review.checked, offers: offers.checked });
+  };
+  const ov = h('div', { class: 'overlay' }, h('div', { class: 'sheet' },
+    h('h2', { style: 'margin-top:0' }, 'Bill in your name'),
+    h('p', { class: 'sub' }, 'Add your details so we can print your name on the bill.'), name, phone,
+    h('label', { class: 'chk' }, review, ' Send me a short message later asking for a Google review (optional)'),
+    h('label', { class: 'chk' }, offers, ' Send me occasional offers from this restaurant (optional)'),
+    h('p', { class: 'sub' }, 'We use your number only for the above. Tick nothing and we will use it just for your bill. You can ask staff to delete it any time.'),
+    err, h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'btn sec', onclick: () => submit(true) }, 'Skip'), h('button', { class: 'btn', onclick: () => submit(false) }, 'Get bill'))));
+  document.body.append(ov);
 }
 
 function paintDock() {
@@ -36,7 +57,10 @@ function paintDock() {
   dock.replaceChildren(
     h('button', { class: 'btn sec', disabled: !n, onclick: () => busy(async () => { await api(`/api/table/${tableId}/order`, { items: cartLines() }); cart.clear(); }) }, n ? `Order now (${n})` : 'Select dishes'),
     h('button', { class: 'btn', disabled: !n && !ordered, onclick: () => {
-      if (confirm('Generate the final bill? You can\'t order more after this.')) busy(async () => { await api(`/api/table/${tableId}/bill`, { items: cartLines() }); cart.clear(); });
+      if (confirm('Generate the final bill? You can\'t order more after this.')) {
+        const go = (contact) => busy(async () => { await api(`/api/table/${tableId}/bill`, { items: cartLines(), contact }); cart.clear(); });
+        view.customer ? go(undefined) : contactForm(go);
+      }
     } }, n ? `Order & get bill · ${rupee(cartTotal())}` : 'Get bill'));
 }
 
@@ -50,7 +74,9 @@ async function refresh() {
     document.getElementById('sub').textContent = `Table code ${view.code} — share with others at your table`;
     if (drawn !== 'active') { renderMenu(app, menu, { cart, onChange: paintDock }); app.prepend(h('div', { id: 'ordered' })); drawn = 'active'; }
     const o = document.getElementById('ordered');
-    o.replaceChildren(...(view.orders.length ? [billCard(view.bill, false)] : []));
+    const label = { new: 'Received', kitchen: 'Being prepared', served: 'Served' };
+    o.replaceChildren(...(view.orders.length ? [billCard(view.bill, false), h('div', { class: 'bill' }, h('b', {}, 'Order status'),
+      ...view.orders.map((x) => h('div', {}, x.items.map((i) => `${i.qty}× ${i.name}`).join(', '), h('span', { class: 'tag' }, label[x.status] || x.status))))] : []));
     return paintDock();
   }
   drawn = view.state;
