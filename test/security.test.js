@@ -1,5 +1,6 @@
 process.env.TABLE_COUNT = '4';
 process.env.ADMIN_PASSWORD = 'test-pass-123';
+process.env.STATE_FILE = require('path').join(require('os').tmpdir(), `sec-test-${process.pid}.json`);
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -33,7 +34,7 @@ test('every response carries security headers; CSP forbids inline script', async
 });
 
 test('no page ships inline scripts or style attributes (CSP-clean)', () => {
-  const dir = path.join(__dirname, '..', 'public');
+  const dir = path.join(__dirname, '..', 'web');
   for (const f of fs.readdirSync(dir)) {
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     if (f.endsWith('.html')) {
@@ -394,4 +395,48 @@ test('http: settings reports whether the QR setup is safe to print', async () =>
     assert.match(s.fingerprint, /^[0-9a-f]{6}$/);
     assert.equal(s.secretChangedAt, null);
   });
+});
+
+test('serverless entry: start-up failures become readable responses, not opaque 500s', async () => {
+  const config = require('../src/config');
+  const { makeHandler } = require('../src/vercel');
+  const call = async (handler) => {
+    const srv = require('http').createServer(handler).listen(0);
+    try { const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/menu`); return { status: r.status, body: await r.text() }; } finally { srv.close(); }
+  };
+  const origError = console.error; console.error = () => {};
+  try {
+    const crashed = await call(makeHandler(() => { throw Object.assign(new Error('boom'), { code: 'EROFS' }); }));
+    assert.equal(crashed.status, 500);
+    assert.match(crashed.body, /Startup failed: EROFS: boom/);
+    const ok = await call(makeHandler(() => createServer(mk())));
+    assert.equal(ok.status, 200);
+    assert.match(ok.body, /categories/);
+    config.missingEnv.push('ADMIN_PASSWORD');
+    try {
+      const unconfigured = await call(makeHandler());
+      assert.equal(unconfigured.status, 503);
+      assert.match(unconfigured.body, /ADMIN_PASSWORD/);
+    } finally { config.missingEnv.pop(); }
+  } finally { console.error = origError; }
+});
+
+test('hosting config: only public/ is published statically, and it holds no app code', () => {
+  const dir = path.join(__dirname, '..', 'public');
+  const files = fs.readdirSync(dir);
+  assert.deepEqual(files, ['robots.txt']);                // Vercel serves public/ as-is, with none of our security headers
+  const vercel = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'vercel.json'), 'utf8'));
+  assert.match(vercel.functions['api/index.js'].includeFiles, /web\/\*\*/);
+});
+
+test('src/server.js is itself a valid serverless handler (Vercel "node" preset picks this file)', async () => {
+  const mod = require('../src/server');
+  assert.equal(typeof mod, 'function');                         // "default export must be a function or server"
+  assert.equal(typeof mod.createServer, 'function');
+  const srv = require('http').createServer(mod).listen(0);
+  try {
+    const r = await fetch(`http://127.0.0.1:${srv.address().port}/api/menu`);
+    assert.equal(r.status, 200);
+    assert.match(await r.text(), /categories/);
+  } finally { srv.close(); }
 });

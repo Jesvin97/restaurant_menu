@@ -7,7 +7,7 @@ const { Store } = require('./store');
 const QRCode = require('qrcode');
 const { parseRows, parseCsv, normalize, TEMPLATE_CSV } = require('./menu');
 
-const PUBLIC = path.join(__dirname, '..', 'public');
+const PUBLIC = path.join(__dirname, '..', 'web');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.json': 'application/json' };
 const PAGES = { '/menu': 'menu.html', '/admin': 'admin.html', ...(config.demo ? { '/demo': 'demo.html' } : {}) };
 
@@ -258,7 +258,7 @@ function createServer(store = new Store(), opts = {}) {
       }
 
       if (req.method === 'GET' && p === '/') { res.writeHead(302, { ...SECURITY_HEADERS, Location: config.demo ? '/demo' : '/menu' }); return res.end(); }
-      if (req.method === 'GET' && p === '/api/info') return send(res, 200, { demo: config.demo });
+      if (req.method === 'GET' && p === '/api/info') return send(res, 200, { demo: config.demo, commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null });
       if (config.demo && p.startsWith('/api/demo/')) {
         // Public on purpose: the demo has no real data. Only available when DEMO_MODE=1.
         if (req.method === 'GET' && p === '/api/demo/info') return send(res, 200, { password: config.demoPassword, tables: Array.from({ length: Math.min(store.tableCount, 4) }, (_, i) => ({ id: i + 1, url: `/t/${i + 1}?s=${store.sign(i + 1)}` })) });
@@ -318,4 +318,9 @@ if (require.main === module) {
     if (config.adminPasswordGenerated) console.warn(`No ADMIN_PASSWORD set. Temporary staff password for this run: ${config.adminPassword}`);
   });
 }
-module.exports = { createServer, limiter };
+// Vercel's "node" framework preset auto-detects src/server.js as the app and requires its default export
+// to be a request handler. Exporting one (with the factory functions attached) keeps that path working
+// even if the project settings pick this file instead of api/index.js.
+let autoHandler;
+const handler = (req, res) => (autoHandler ||= require('./vercel').makeHandler())(req, res);
+module.exports = Object.assign(handler, { createServer, limiter });
