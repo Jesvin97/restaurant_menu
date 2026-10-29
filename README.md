@@ -36,6 +36,16 @@ npm run e2e      # real-browser phone-size run (needs Playwright); SHOTS=dir sav
 - **Excel upload:** columns `Category, Name, Description, Type (Veg/Non-Veg), Half, Full` (or a single `Price`), `Allergens` (comma separated, e.g. `dairy, gluten`). *Check file* previews and reports row-level errors; *Replace my menu* applies it. A CSV template is downloadable. On a normal server the imported menu is saved in the state file.
 - **Allergy filter:** guests tap *Allergies*, choose what to avoid, and dishes whose Allergens column lists it are hidden (remembered on their phone). It relies on the kitchen's data, and the UI says so.
 
+## Demo mode
+
+`DEMO_MODE=1 npm start` (or just add `DEMO_MODE=1` as the only environment variable on Vercel) turns the app into a shareable sandbox. The home page `/` becomes a demo page with one-tap entry points: pick a table as a guest, open the staff dashboard already signed in, scan table/counter QR codes from the screen, and *Reset demo*.
+
+- Tables open instantly, with no staff approval or table code (anyone scanning a table joins it), so one person can try the whole flow alone. Tables 2 and 3 start with sample orders and a bill request so the staff screens aren't empty.
+- Every page shows a "Demo" banner. The staff password is public (`demo`), so staff import and table-count changes are disabled.
+- Nothing is written to disk and guest names/phone numbers are not kept after a table closes. Sessions expire after 1 hour idle.
+- Don't use demo mode for a real restaurant; the open seating and public password are the opposite of the production security model.
+- On Vercel the demo's state is per server instance, so the odd request may land on a fresh instance and look reset.
+
 ## Staff dashboard (`/admin`)
 
 - **Orders** - every table's orders land here within ~3 s, with a beep. Move each through *New -> Sent to kitchen -> Served*; guests see the status on their phone. Leave this open on the counter screen (click once on the page so the browser allows the beep).
@@ -59,6 +69,15 @@ At "Get bill" the guest is asked for name and mobile (skippable unless `REQUIRE_
 - Guest POSTs are rate limited per IP; pairing requests per table are capped; the state file (guest phone numbers) is written `0600`, and a corrupt file is set aside rather than overwritten.
 - Behind a proxy set `TRUST_PROXY=1` (automatic on Vercel) so rate limits see the real client IP.
 - Limits you should know: rate limits are per server instance; uploaded `.xlsx` files are parsed by `exceljs` (staff-only, 3 MB cap) which carries a moderate `uuid` advisory in a code path this app doesn't use.
+
+## Printing QR codes once
+
+The table QR is permanent: it encodes `<your address>/t/<n>?s=<signature>`, and the signature is derived from `QR_SECRET` and the table number only. So a printed code keeps working through restarts, redeploys, wiped data, and removing then re-adding a table, as long as two things stay the same:
+
+1. **`QR_SECRET`** - set it on the server before printing and never change it. (If it changes, the server warns, and *Setup* shows a permanent notice with the date.)
+2. **The address** - it is part of the printed code. Set `BASE_URL` to your permanent domain *before* printing; don't print from a temporary `*.vercel.app` or `localhost` address. If you later move domains, keep the old one redirecting to the new one.
+
+*Staff -> Setup -> Before you print* checks all of this and shows the secret's fingerprint. The codes themselves are safe to leave on tables: scanning one only asks staff to seat the guest, it never grants access.
 
 ## Number of tables
 

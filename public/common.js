@@ -80,3 +80,9 @@ function renderMenu(root, menu, opts = {}) {
   root.replaceChildren(bar, h('div', { class: 'searchrow' }, search), list);
   draw();
 }
+
+// Demo builds show a banner on every page so nobody mistakes the sandbox for a real restaurant.
+api('/api/info').then((i) => {
+  if (!i.demo) return;
+  document.body.prepend(h('div', { class: 'demo-banner' }, 'Demo — nothing here is real. Please don\'t enter a real phone number. ', h('a', { href: '/demo' }, 'Demo home')));
+}).catch(() => {});

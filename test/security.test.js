@@ -339,3 +339,59 @@ test('tax and totals: integer rupees, rounding half up, no float drift', () => {
   assert.deepEqual([b.subtotal, b.tax, b.total], [135, 7, 142]);
   assert.ok(Number.isInteger(b.tax));
 });
+
+test('an unwritable state path does not crash startup or requests', () => {
+  const origError = console.error; const logs = [];
+  console.error = (m) => logs.push(m);
+  try {
+    const s = new Store('/etc/hostname/data/state.json');        // parent is a file -> mkdir fails, like a read-only serverless disk
+    s.enter('1', 'A'); s.seat('1');
+    assert.ok(s.placeOrder('1', 'A', [{ id: 'idli-3-pcs', qty: 1 }]).ok);   // still works from memory
+    assert.equal(logs.filter((l) => /cannot save state/.test(l)).length, 1); // warned once, not per request
+  } finally { console.error = origError; }
+});
+
+test('printed QR codes keep working: same secret -> same links, even with all data wiped', () => {
+  const config = require('../src/config');
+  const before = config.qrSecret;
+  config.qrSecret = 'a-long-fixed-secret-for-printing';
+  try {
+    const a = new Store('/dev/null', { persist: false });
+    const link = a.sign(5);
+    a.setTableCount(1);                                           // table 5 removed...
+    a.setTableCount(8);                                           // ...and re-added later
+    assert.equal(a.sign(5), link);
+    const b = new Store('/dev/null', { persist: false });         // fresh server, no state at all
+    assert.equal(b.sign(5), link);
+    assert.ok(b.verify(5, link));
+    assert.equal(b.qrHealth().secretFromEnv, true);
+  } finally { config.qrSecret = before; }
+});
+
+test('changing the QR secret is detected and reported', () => {
+  const config = require('../src/config');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'qrs-')), 'state.json');
+  const origError = console.error; console.error = () => {};
+  const before = config.qrSecret;
+  try {
+    config.qrSecret = 'first-secret-value';
+    const s1 = new Store(file);
+    assert.equal(s1.qrHealth().secretChangedAt, null);
+    new Store(file);                                              // restart, same secret: no alarm
+    assert.equal(new Store(file).qrHealth().secretChangedAt, null);
+    config.qrSecret = 'second-secret-value';
+    const s2 = new Store(file);
+    assert.ok(s2.qrHealth().secretChangedAt);
+    assert.equal(s2.verify(1, s1.sign(1)), false);                // old printed code is now invalid...
+    assert.ok(new Store(file).qrHealth().secretChangedAt);        // ...and the warning persists across restarts
+  } finally { config.qrSecret = before; console.error = origError; }
+});
+
+test('http: settings reports whether the QR setup is safe to print', async () => {
+  await withServer(async ({ base, auth }) => {
+    const s = await (await fetch(`${base}/api/admin/settings`, { headers: await auth() })).json();
+    assert.equal(s.hostKind, 'local');
+    assert.match(s.fingerprint, /^[0-9a-f]{6}$/);
+    assert.equal(s.secretChangedAt, null);
+  });
+});

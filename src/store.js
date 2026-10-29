@@ -9,7 +9,7 @@ const rid = (n = 8) => crypto.randomBytes(n).toString('hex');
 class Store {
   constructor(file = config.stateFile, opts = {}) {
     this.file = file;
-    this.persist = opts.persist !== false;
+    this.persist = opts.persist ?? !config.demo; // a public demo never writes guest data to disk
     this.now = opts.now || (() => Date.now());
     this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0, menu: null, unavailable: {} };
     if (this.persist && fs.existsSync(file)) {
@@ -18,15 +18,42 @@ class Store {
       } catch {
         // Never overwrite an unreadable state file: keep it aside so nothing is silently lost.
         const aside = `${file}.corrupt-${Date.now()}`;
-        fs.renameSync(file, aside);
-        console.error(`State file was unreadable; moved to ${aside} and starting fresh.`);
+        try { fs.renameSync(file, aside); console.error(`State file was unreadable; moved to ${aside} and starting fresh.`); } catch { console.error('State file was unreadable and could not be moved aside; starting fresh in memory.'); }
       }
     }
+    // Table QR codes are printed once, so their signing secret must never change silently.
+    this.secretFromEnv = Boolean(config.qrSecret);
     if (!this.state.secret) this.state.secret = config.qrSecret || rid(16);
     if (config.qrSecret) this.state.secret = config.qrSecret;
+    const fp = sha(this.state.secret).slice(0, 6);
+    if (this.state.secretFp && this.state.secretFp !== fp) {
+      this.state.secretChangedAt = Date.now();
+      console.error('WARNING: the QR secret changed. Table QR codes printed with the old secret no longer work; restore the old QR_SECRET or reprint.');
+    }
+    this.state.secretFp = fp;
     this.setTableCount(this.state.tableCount || config.tableCount, false);
     this.setMenu(this.state.menu || defaultMenu, false);
     this.save();
+    if (config.demo) this.seedDemo();
+  }
+
+  // ---- demo ------------------------------------------------------------
+  /** Fresh sandbox: clears everything guests created and puts a few realistic sessions on the staff screens. */
+  seedDemo() {
+    for (const t of Object.values(this.state.tables)) { t.session = null; t.pending = []; }
+    this.state.customers = {}; this.state.history = []; this.state.unavailable = {};
+    this.setMenu(require('./menu.json'), false);
+    this.state.menu = null;
+    const seed = (id, lines, status) => {
+      const t = this.table(id);
+      if (!t) return;
+      this._open(t, sha(`demo-seed-${id}`));
+      for (const [dish, opt, qty] of lines) this.placeOrder(id, `demo-seed-${id}`, [{ id: dish, opt, qty }]);
+      if (status === 'closing') this.requestBill(id, `demo-seed-${id}`);
+      if (status === 'kitchen') t.session.orders.forEach((o) => { o.status = 'kitchen'; });
+    };
+    seed('2', [['paneer-tikka', 'regular', 1], ['butter-naan', 'regular', 3]], 'kitchen');
+    seed('3', [['chicken-dum-biryani', 'full', 2], ['masala-chai', 'regular', 2]], 'closing');
   }
 
   // ---- tables ----------------------------------------------------------
@@ -99,10 +126,26 @@ class Store {
 
   save() {
     if (!this.persist) return;
-    fs.mkdirSync(path.dirname(this.file), { recursive: true });
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.state), { mode: 0o600 }); // contains guest phone numbers
-    fs.renameSync(tmp, this.file);
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      const tmp = this.file + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(this.state), { mode: 0o600 }); // contains guest phone numbers
+      fs.renameSync(tmp, this.file);
+    } catch (e) {
+      // A read-only or full disk must not take the restaurant offline: keep serving from memory and say so once.
+      if (!this.warnedSave) console.error(`WARNING: cannot save state to ${this.file} (${e.code || e.message}); running in memory only.`);
+      this.warnedSave = true;
+    }
+  }
+
+  /** Facts staff need before printing QR codes they can't easily replace. */
+  qrHealth() {
+    return {
+      fingerprint: this.state.secretFp,
+      secretFromEnv: this.secretFromEnv,
+      secretChangedAt: this.state.secretChangedAt || null,
+      persisted: !this.warnedSave,
+    };
   }
 
   // ---- static table QR signature -------------------------------------
@@ -128,7 +171,7 @@ class Store {
     const s = t.session;
     if (!s) return;
     if (s.orders.length) {
-      if (s.customer) this._recordCustomer(s.customer, this.bill(s).total);
+      if (s.customer && !config.demo) this._recordCustomer(s.customer, this.bill(s).total);
       this.state.history.push({ ...this.bill(s), sessionId: s.id, closedAt: this.now(), reason, customerPhone: s.customer && s.customer.phone });
       this.state.history = this.state.history.slice(-2000);
     }
@@ -165,6 +208,8 @@ class Store {
     const h = sha(token);
     if (t.session) {
       if (t.session.members.includes(h)) return { state: 'active' };
+      // A public demo has no one to hand out table codes, so anyone scanning joins the open table.
+      if (config.demo) { t.session.members.push(h); this.save(); return { state: 'active' }; }
       return { state: 'needs_code' };
     }
     if (config.autoSeat) { this._open(t, h); this.save(); return { state: 'active' }; }

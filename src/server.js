@@ -9,7 +9,7 @@ const { parseRows, parseCsv, normalize, TEMPLATE_CSV } = require('./menu');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.json': 'application/json' };
-const PAGES = { '/menu': 'menu.html', '/admin': 'admin.html' };
+const PAGES = { '/menu': 'menu.html', '/admin': 'admin.html', ...(config.demo ? { '/demo': 'demo.html' } : {}) };
 
 // Neutralise spreadsheet formula injection (=,+,-,@) in exported guest-supplied text.
 const csvCell = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s) && !/^\+91\d{10}$/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
@@ -79,6 +79,7 @@ function createServer(store = new Store(), opts = {}) {
   const loginFails = limiter(8, 10 * 60e3, now);
   const guestPosts = limiter(300, 60e3, now);
   const scans = limiter(40, 60e3, now);
+  const resets = limiter(6, 60e3, now);
 
   // Admin sessions are stateless signed tokens (work across serverless instances); changing the password revokes them all.
   const tokenKey = crypto.createHash('sha256').update(`admin:${store.state.secret}:${config.adminPassword}`).digest();
@@ -161,8 +162,17 @@ function createServer(store = new Store(), opts = {}) {
     let m;
     if (req.method === 'POST' && p === '/api/admin/login') return login(res, clientIp(req), await readJson(req));
     if (!isAdmin(req)) return send(res, 401, { error: 'Please sign in' });
+    if (config.demo && req.method === 'POST' && (p === '/api/admin/settings' || p === '/api/admin/menu/import')) return send(res, 403, { error: 'Disabled in the demo' });
 
-    if (req.method === 'GET' && p === '/api/admin/settings') return send(res, 200, { tableCount: store.tableCount, maxTables: config.maxTables, baseUrl: origin(req) });
+    if (req.method === 'GET' && p === '/api/admin/settings') {
+      const base = origin(req);
+      const host = new URL(base).hostname;
+      return send(res, 200, {
+        tableCount: store.tableCount, maxTables: config.maxTables, baseUrl: base, baseUrlSet: config.baseUrlSet,
+        hostKind: /^(localhost|127\.|10\.|192\.168\.)/.test(host) ? 'local' : /\.vercel\.app$/.test(host) ? 'vercel' : 'custom',
+        ...store.qrHealth(),
+      });
+    }
     if (req.method === 'POST' && p === '/api/admin/settings') {
       const body = await readJson(req);
       return reply(res, store.setTableCount(Number(body.tableCount)));
@@ -233,6 +243,9 @@ function createServer(store = new Store(), opts = {}) {
 
   return http.createServer(async (req, res) => {
     try {
+      if (config.missingEnv.length) {
+        return send(res, 503, `Server is not configured yet. Set these environment variables in the hosting dashboard and redeploy: ${config.missingEnv.join(', ')}`);
+      }
       const url = new URL(req.url, 'http://x');
       const p = url.pathname;
       let m;
@@ -244,7 +257,21 @@ function createServer(store = new Store(), opts = {}) {
         if (!ok) return send(res, 403, { error: 'Cross-site request refused' });
       }
 
-      if (req.method === 'GET' && p === '/') { res.writeHead(302, { ...SECURITY_HEADERS, Location: '/menu' }); return res.end(); }
+      if (req.method === 'GET' && p === '/') { res.writeHead(302, { ...SECURITY_HEADERS, Location: config.demo ? '/demo' : '/menu' }); return res.end(); }
+      if (req.method === 'GET' && p === '/api/info') return send(res, 200, { demo: config.demo });
+      if (config.demo && p.startsWith('/api/demo/')) {
+        // Public on purpose: the demo has no real data. Only available when DEMO_MODE=1.
+        if (req.method === 'GET' && p === '/api/demo/info') return send(res, 200, { password: config.demoPassword, tables: Array.from({ length: Math.min(store.tableCount, 4) }, (_, i) => ({ id: i + 1, url: `/t/${i + 1}?s=${store.sign(i + 1)}` })) });
+        if (req.method === 'GET' && (m = p.match(/^\/api\/demo\/qr\/(counter|\d+)\.svg$/))) {
+          const target = m[1] === 'counter' ? '/menu' : store.table(m[1]) ? `/t/${m[1]}?s=${store.sign(m[1])}` : null;
+          return target ? send(res, 200, await qrSvg(origin(req) + target), { 'Content-Type': 'image/svg+xml' }) : send(res, 404, { error: 'No such table' });
+        }
+        if (req.method === 'POST' && p === '/api/demo/reset') {
+          if (resets.hit(clientIp(req))) return send(res, 429, { error: 'Slow down' });
+          store.seedDemo();
+          return send(res, 200, { ok: true });
+        }
+      }
       if (req.method === 'GET' && PAGES[p]) return serveFile(res, PAGES[p]);
       if (req.method === 'GET' && (m = p.match(/^\/t\/(\d+)$/))) {
         // Static table QR: must carry a valid signature, otherwise it's a made-up URL.
