@@ -2,6 +2,7 @@
 // An item has one option (single price) or several (e.g. Half / Full).
 const slug = (s) => String(s).toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'item';
 
+// eslint-disable-next-line no-control-regex -- stripping control characters is the point
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 
 function parseAllergens(v) {
@@ -88,7 +89,7 @@ function parseRows(rows) {
 /** Minimal CSV parser (quotes, commas, newlines) so the sheet can also be uploaded as .csv. */
 function parseCsv(text) {
   const rows = []; let row = [], cur = '', q = false;
-  text = text.replace(/^﻿/, '');
+  text = text.replace(/^\uFEFF/, '');
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
     if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }

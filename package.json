@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "qr": "node scripts/generate-qr.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "e2e": "node scripts/e2e-mobile.js"
   },
   "repository": {
     "type": "git",
@@ -22,5 +24,8 @@
   "dependencies": {
     "exceljs": "^4.4.0",
     "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5"
   }
 }

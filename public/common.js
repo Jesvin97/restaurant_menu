@@ -31,19 +31,20 @@ const sheet = (...kids) => { const ov = h('div', { class: 'overlay', onclick: (e
 function renderMenu(root, menu, opts = {}) {
   const st = { cat: menu.categories[0] && menu.categories[0].id, diet: 'all', q: '', avoid: new Set(store.get('allergens', [])) };
   const allergens = [...new Set(['gluten', 'dairy', 'egg', 'peanut', 'tree-nut', 'soy', 'fish', 'shellfish', 'sesame', ...menu.items.flatMap((i) => i.allergens || [])])];
-  const bar = h('div', { class: 'bar' }), top = h('div', { class: 'row filters' }), cats = h('div', { class: 'row', style: 'margin-top:8px' }), list = h('main');
+  const bar = h('div', { class: 'bar' }), top = h('div', { class: 'row filters' }), cats = h('div', { class: 'row mt8' }), list = h('main');
+  const search = h('input', { type: 'search', class: 'search', placeholder: 'Search dishes', value: st.q, 'aria-label': 'Search dishes', oninput: (e) => { st.q = e.target.value; drawCats(); drawList(); } });
   const chip = (label, on, fn) => h('button', { class: 'chip' + (on ? ' on' : ''), onclick: fn }, label);
   const draw = () => {
     top.replaceChildren(
       h('div', { class: 'seg' }, ...[['all', 'All'], ['veg', 'Veg'], ['nonveg', 'Non-veg']].map(([k, l]) => h('button', { class: (st.diet === k ? 'on ' : '') + k, onclick: () => { st.diet = k; draw(); } }, l))),
-      h('input', { type: 'search', placeholder: 'Search', value: st.q, 'aria-label': 'Search dishes', oninput: (e) => { st.q = e.target.value; drawList(); } }),
       h('button', { class: 'chip' + (st.avoid.size ? ' on' : ''), onclick: allergyPicker }, st.avoid.size ? `Allergies (${st.avoid.size})` : 'Allergies'));
-    cats.replaceChildren(...menu.categories.map((c) => chip(c.name, st.cat === c.id && !st.q.trim(), () => { st.cat = c.id; st.q = ''; draw(); })));
+    drawCats();
     drawList();
   };
+  const drawCats = () => cats.replaceChildren(...menu.categories.map((c) => chip(c.name, st.cat === c.id && !st.q.trim(), () => { st.cat = c.id; st.q = ''; search.value = ''; draw(); })));
   const allergyPicker = () => {
     const boxes = allergens.map((a) => h('label', { class: 'chk' }, h('input', { type: 'checkbox', checked: st.avoid.has(a) ? '' : null, 'data-a': a }), ' ' + cap(a)));
-    const ov = sheet(h('h2', { style: 'margin-top:0' }, 'Hide dishes containing…'), ...boxes,
+    const ov = sheet(h('h2', { class: 'flush' }, 'Hide dishes containing…'), ...boxes,
       h('p', { class: 'sub' }, 'Based on the allergen list the kitchen entered. For severe allergies, please also tell our staff.'),
       h('div', { class: 'row' }, h('button', { class: 'btn sec', onclick: () => { st.avoid.clear(); apply(); } }, 'Clear'), h('button', { class: 'btn', onclick: () => { st.avoid = new Set([...ov.querySelectorAll('input:checked')].map((x) => x.dataset.a)); apply(); } }, 'Apply')));
     const apply = () => { store.set('allergens', [...st.avoid]); ov.remove(); draw(); };
@@ -76,6 +77,6 @@ function renderMenu(root, menu, opts = {}) {
     return box;
   };
   bar.append(top, cats);
-  root.replaceChildren(bar, list);
+  root.replaceChildren(bar, h('div', { class: 'searchrow' }, search), list);
   draw();
 }

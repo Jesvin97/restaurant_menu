@@ -13,15 +13,40 @@ class Store {
     this.now = opts.now || (() => Date.now());
     this.state = { secret: '', tables: {}, history: [], customers: {}, seq: 0, menu: null, unavailable: {} };
     if (this.persist && fs.existsSync(file)) {
-      try { this.state = { ...this.state, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* start fresh */ }
+      try {
+        this.state = { ...this.state, ...JSON.parse(fs.readFileSync(file, 'utf8')) };
+      } catch {
+        // Never overwrite an unreadable state file: keep it aside so nothing is silently lost.
+        const aside = `${file}.corrupt-${Date.now()}`;
+        fs.renameSync(file, aside);
+        console.error(`State file was unreadable; moved to ${aside} and starting fresh.`);
+      }
     }
     if (!this.state.secret) this.state.secret = config.qrSecret || rid(16);
     if (config.qrSecret) this.state.secret = config.qrSecret;
-    for (let i = 1; i <= config.tableCount; i++) {
-      this.state.tables[i] = this.state.tables[i] || { session: null, pending: [] };
-    }
+    this.setTableCount(this.state.tableCount || config.tableCount, false);
     this.setMenu(this.state.menu || defaultMenu, false);
     this.save();
+  }
+
+  // ---- tables ----------------------------------------------------------
+  get tableCount() { return Object.keys(this.state.tables).length; }
+
+  /** Tables are numbered 1..n. Growing is always fine; shrinking only removes free tables from the end. */
+  setTableCount(n, persist = true) {
+    if (!Number.isInteger(n) || n < 1 || n > config.maxTables) return { ok: false, status: 400, error: `Number of tables must be between 1 and ${config.maxTables}` };
+    const busy = [];
+    for (let i = n + 1; i <= this.tableCount; i++) {
+      const t = this.state.tables[i];
+      this._expire(t);
+      if (t.session || t.pending.length) busy.push(i);
+    }
+    if (busy.length) return { ok: false, status: 409, error: `Table ${busy.join(', ')} ${busy.length > 1 ? 'are' : 'is'} in use. Close ${busy.length > 1 ? 'them' : 'it'} first.` };
+    for (let i = this.tableCount; i > n; i--) delete this.state.tables[i];
+    for (let i = 1; i <= n; i++) this.state.tables[i] = this.state.tables[i] || { session: null, pending: [] };
+    this.state.tableCount = n;
+    if (persist) this.save();
+    return { ok: true, tableCount: n };
   }
 
   // ---- menu & availability ---------------------------------------------
@@ -76,7 +101,7 @@ class Store {
     if (!this.persist) return;
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(this.state));
+    fs.writeFileSync(tmp, JSON.stringify(this.state), { mode: 0o600 }); // contains guest phone numbers
     fs.renameSync(tmp, this.file);
   }
 
@@ -143,7 +168,10 @@ class Store {
       return { state: 'needs_code' };
     }
     if (config.autoSeat) { this._open(t, h); this.save(); return { state: 'active' }; }
-    if (!t.pending.some((p) => p.token === h)) t.pending.push({ token: h, at: this.now() });
+    if (!t.pending.some((p) => p.token === h)) {
+      if (t.pending.length >= 8) t.pending.shift(); // a flood of fake scans can't grow without bound
+      t.pending.push({ token: h, label: h.slice(0, 3).toUpperCase(), at: this.now() });
+    }
     this.save();
     return { state: 'pending' };
   }
@@ -175,7 +203,8 @@ class Store {
     const h = sha(token || '');
     const s = t.session;
     if (!s) {
-      return { state: t.pending.some((p) => p.token === h) ? 'pending' : 'closed' };
+      const mine = t.pending.find((p) => p.token === h);
+      return mine ? { state: 'pending', pairing: mine.label } : { state: 'closed' };
     }
     if (!s.members.includes(h)) return { state: 'needs_code' };
     const base = { code: s.code, customer: s.customer ? { name: s.customer.name } : null, requireContact: config.requireContact };
@@ -196,7 +225,7 @@ class Store {
     const merged = new Map();
     for (const l of lines) {
       const item = this.itemsById.get(String(l && l.id));
-      const qty = Number(l && l.qty);
+      const qty = l && l.qty; // must already be a number: strings like "2" are rejected, not coerced
       const opt = item && item.options.find((o) => o.id === (l.opt || item.options[0].id));
       if (!item || !opt || !Number.isInteger(qty) || qty < 1 || qty > 20) return { ok: false, status: 400, error: 'Invalid item' };
       if (this.state.unavailable[item.id]) return { ok: false, status: 409, error: `${item.name} is not available right now`, unavailable: item.id };
@@ -223,6 +252,7 @@ class Store {
 
   /** Validates guest contact details. Marketing flags are only true when explicitly ticked. */
   static cleanContact(c) {
+    // eslint-disable-next-line no-control-regex -- stripping control characters is the point
     const name = String((c && c.name) || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 60);
     const phone = Store.normalizePhone(c && c.phone);
     if (!name || !phone) return null;
@@ -293,7 +323,7 @@ class Store {
       this._expire(t);
       const s = t.session;
       return {
-        id, pending: t.pending.length,
+        id, pending: t.pending.map((p) => p.label),
         session: s && { id: s.id, status: s.status, code: s.code, devices: s.members.length, openedAt: s.openedAt, orders: s.orders, bill: this.bill(s) },
       };
     });
@@ -340,14 +370,18 @@ class Store {
     return { ok: true };
   }
 
-  seat(tableId) {
+  seat(tableId, label) {
     const t = this.table(tableId);
     if (!t) return { ok: false, status: 404, error: 'invalid table' };
     this._expire(t);
     if (t.session) return { ok: false, status: 409, error: 'Table already has an active session' };
     if (!t.pending.length) return { ok: false, status: 409, error: 'No guest is waiting at this table' };
-    // The earliest waiting device becomes the host; others must use the code.
-    this._open(t, t.pending[0].token);
+    // Staff pick the device whose pairing code the guest at the table reads out, so a remote
+    // (photographed-QR) request can never become the host just by being first in the queue.
+    const want = label ? String(label).toUpperCase() : (t.pending.length === 1 ? t.pending[0].label : null);
+    const pick = t.pending.find((p) => p.label === want);
+    if (!pick) return { ok: false, status: 400, error: 'Choose which pairing code to seat' };
+    this._open(t, pick.token);
     t.pending = [];
     this.save();
     return { ok: true };

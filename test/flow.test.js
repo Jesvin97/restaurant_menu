@@ -1,8 +1,14 @@
 process.env.TABLE_COUNT = '3';
+process.env.ADMIN_PASSWORD = 'test-pass-123';
 const test = require('node:test');
 const assert = require('node:assert');
 const { Store } = require('../src/store');
 const { createServer } = require('../src/server');
+
+const loginFor = async (base) => {
+  const r = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'test-pass-123' }) });
+  return { Authorization: `Bearer ${(await r.json()).token}` };
+};
 
 const mk = () => new Store('/dev/null', { persist: false });
 const order = [{ id: 'idli-3-pcs', qty: 2 }];
@@ -120,8 +126,11 @@ test('http: signed table link, cookies and admin auth', async () => {
     assert.equal((await (await post('/api/table/1/enter', { s: store.sign(1) })).json()).state, 'pending');
     assert.equal((await post('/api/table/1/enter', { s: 'nope' })).status, 403);
     assert.equal((await post('/api/admin/tables/1/seat', {})).status, 401);
-    assert.equal((await post('/api/admin/tables/1/seat', {}, { 'x-admin-password': 'admin123' })).status, 200);
-    const r = await post('/api/table/1/bill', { items: order });
+    const A = await loginFor(base);
+    assert.equal((await post('/api/admin/tables/1/seat', {}, A)).status, 200);
+    assert.equal((await post('/api/table/1/bill', {})).status, 400);   // nothing ordered yet
+    assert.equal((await post('/api/table/1/order', { items: order })).status, 200);
+    const r = await post('/api/table/1/bill', {});
     assert.equal(r.status, 200);
     assert.equal((await r.json()).bill, undefined);       // guests get no total from this call
     assert.equal((await fetch(`${base}/api/table/1/order`, { method: 'POST', body: '{}' })).status, 415);
@@ -164,7 +173,7 @@ test('http: customers CSV needs staff auth and neutralises formulas', async () =
   const base = `http://127.0.0.1:${srv.address().port}/api/admin/customers.csv?for=offers`;
   try {
     assert.equal((await fetch(base)).status, 401);
-    const txt = await (await fetch(base, { headers: { 'x-admin-password': 'admin123' } })).text();
+    const txt = await (await fetch(base, { headers: await loginFor(base.split('/api')[0]) })).text();
     assert.match(txt, /"'=HYPERLINK/);
     assert.match(txt, /\+919876543210/);
   } finally { srv.close(); }
@@ -195,7 +204,7 @@ test('http: xlsx upload previews, then applies; guests see the new menu', async 
   const store = mk();
   const srv = createServer(store).listen(0);
   const base = `http://127.0.0.1:${srv.address().port}`;
-  const H = { 'x-admin-password': 'admin123', 'Content-Type': 'application/octet-stream' };
+  const H = { ...(await loginFor(base)), 'Content-Type': 'application/octet-stream' };
   try {
     assert.equal((await fetch(`${base}/api/admin/menu/import`, { method: 'POST', body: buf })).status, 401);
     let r = await fetch(`${base}/api/admin/menu/import`, { method: 'POST', headers: H, body: buf });
