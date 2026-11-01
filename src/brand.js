@@ -5,6 +5,7 @@ const path = require('path');
 
 const DIR = path.join(__dirname, '..', 'brands');
 const DEFAULT_ID = 'spice-route';
+const LOGO_TYPES = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' };
 const HEX = /^#[0-9a-f]{6}$/i;
 
 const DEFAULT_INTROS = {
@@ -32,9 +33,13 @@ function loadBrand(id = process.env.BRAND || DEFAULT_ID, env = process.env, dir 
   }
   const name = text(env.RESTAURANT_NAME || raw.name, 40) || 'Our Restaurant';
   const color = (v, d) => (HEX.test(v || '') ? v : d);
+  // A logo is a file named after the brand in brands/logos/ (trusted, committed with the code).
+  const ext = Object.keys(LOGO_TYPES).find((e) => fs.existsSync(path.join(dir, 'logos', `${id}.${e}`)));
   return {
     id,
     name,
+    logoFile: ext ? path.join(dir, 'logos', `${id}.${ext}`) : null,
+    logoType: ext ? LOGO_TYPES[ext] : null,
     tagline: text(raw.tagline, 80),
     monogram: monogram(name),
     accent: color(raw.accent, '#b8400b'),

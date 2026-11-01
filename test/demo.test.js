@@ -46,6 +46,7 @@ test('demo: staff can sign in with the public demo password, but import and sett
     const A = { Authorization: `Bearer ${token}` };
     assert.equal((await fetch(`${base}/api/admin/orders`, { headers: A })).status, 200);
     assert.equal((await fetch(`${base}/api/admin/settings`, { method: 'POST', headers: { ...J, ...A }, body: '{"tableCount":50}' })).status, 403);
+    assert.equal((await fetch(`${base}/api/admin/logo`, { method: 'POST', headers: { ...A, 'Content-Type': 'application/octet-stream' }, body: Buffer.alloc(20) })).status, 403);
     assert.equal((await fetch(`${base}/api/admin/menu/import`, { method: 'POST', headers: { ...A, 'Content-Type': 'application/octet-stream' }, body: Buffer.from('x') })).status, 403);
   });
 });

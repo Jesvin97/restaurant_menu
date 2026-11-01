@@ -100,3 +100,5 @@ header.brand{padding:calc(18px + env(safe-area-inset-top)) 16px 14px;background:
 .msg h2{font-family:var(--serif)}.msg .big{font-size:2.4rem;line-height:1;margin-bottom:8px}
 .calm{text-align:center;color:var(--mut);padding:36px 16px;font-family:var(--serif);font-style:italic;font-size:1.05rem}
 .admin header.brand{display:block}.toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:6px 16px}
+.logo{flex:none;height:52px;width:auto;max-width:140px;object-fit:contain;border-radius:10px}
+.logoprev{max-height:90px;max-width:100%;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;padding:6px}

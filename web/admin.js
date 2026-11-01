@@ -26,12 +26,14 @@ function login(msg) {
   clearInterval(timer);
   paintTools();
   const err = h('div', { class: 'err', role: 'alert' }, msg || '');
+  const hint = h('p', { class: 'sub' });
   const inp = h('input', { type: 'password', placeholder: 'Staff password', autocomplete: 'current-password', 'aria-label': 'Staff password' });
   const go = async () => {
     try { stash((await api('/api/admin/login', { password: inp.value })).token); start(); } catch (e) { err.textContent = e.message; }
   };
   inp.addEventListener('keydown', (e) => e.key === 'Enter' && go());
-  app.replaceChildren(h('div', { class: 'msg' }, h('h2', {}, 'Sign in'), inp, err, h('button', { class: 'btn narrow mt12', onclick: go }, 'Sign in')));
+  info.then((i) => { if (i.demo) hint.textContent = 'This is the demo. The staff password is: demo'; });
+  app.replaceChildren(h('div', { class: 'msg' }, h('h2', {}, 'Staff sign in'), h('p', { class: 'sub' }, 'Enter the staff password you were given.'), inp, hint, err, h('button', { class: 'btn narrow mt12', onclick: go }, 'Sign in')));
 }
 
 const run = (fn) => async () => { try { await fn(); } catch (e) { alert(e.message); } load(); };
@@ -164,7 +166,24 @@ async function setup() {
     check(!s.secretChangedAt, s.secretChangedAt ? `The QR secret changed on ${new Date(s.secretChangedAt).toLocaleDateString()}. QR codes printed before then no longer work.` : `Secret fingerprint ${s.fingerprint} — if this ever changes, printed codes break.`),
     check(s.hostKind === 'custom' || (s.baseUrlSet && s.hostKind !== 'local'), s.hostKind === 'local' ? `Codes point to ${s.baseUrl}, which only works on your own network. Use your public address.` : s.hostKind === 'vercel' && !s.baseUrlSet ? `Codes point to ${s.baseUrl}. A temporary address is fine for testing, but print only after you have a permanent domain (set BASE_URL) — the address is baked into every code.` : `Codes point to ${s.baseUrl}. Keep this address working for as long as the prints are in use.`),
     check(s.persisted, s.persisted ? 'Server can save its data.' : 'Server cannot save data, so orders and settings reset on restart (printed QR codes still work).'));
-  return [health, h('div', { class: 'card mt8' }, h('h3', {}, 'Number of tables'),
+  const brandInfo = await info;
+  const logoFile = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', class: 'file', 'aria-label': 'Logo file' });
+  const logoMsg = h('div', { class: 'sub' });
+  const sendLogo = async () => {
+    const f = logoFile.files[0];
+    if (!f) { logoMsg.textContent = 'Choose a PNG, JPG or WebP image first.'; return; }
+    const r = await fetch('/api/admin/logo', { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/octet-stream' }, body: f });
+    const j = await r.json();
+    if (!r.ok) { logoMsg.textContent = j.error; logoMsg.className = 'err'; return; }
+    location.reload();
+  };
+  const logoCard = h('div', { class: 'card mt8' }, h('h3', {}, 'Logo'),
+    brandInfo.brand.logo ? h('img', { class: 'logoprev', src: `/brand-logo?v=${brandInfo.brand.logo}`, alt: 'Current logo' }) : h('div', { class: 'sub' }, `No logo yet. Guests see the "${brandInfo.brand.monogram}" badge.`),
+    h('div', { class: 'sub' }, 'PNG, JPG or WebP, up to 300 KB. A square or wide image on a transparent or white background works best. It appears at the top of every guest and staff page.'),
+    logoFile, h('div', { class: 'row wrap' }, h('button', { class: 'btn small', onclick: sendLogo }, 'Upload logo'),
+      brandInfo.brand.logo ? h('button', { class: 'chip small', onclick: async () => { await post('/api/admin/logo/remove'); location.reload(); } }, 'Remove uploaded logo') : null), logoMsg,
+    h('div', { class: 'sub' }, 'On a host that restarts often (such as a free Vercel plan) an uploaded logo can disappear. To make it permanent, save the image as brands/logos/<brand>.png in the code.'));
+  return [health, logoCard, h('div', { class: 'card mt8' }, h('h3', {}, 'Number of tables'),
       h('div', { class: 'stepper' }, h('button', { class: 'add', 'aria-label': 'Fewer tables', onclick: bump(-1) }, '−'), count, h('button', { class: 'add', 'aria-label': 'More tables', onclick: bump(1) }, '+'), save),
       h('div', { class: 'sub' }, 'Adding tables is instant. Removing only works for free tables, from the highest number down. New tables need their QR printed below.')),
     h('h2', {}, 'QR codes'), h('div', { class: 'sub' }, `Links point to ${s.baseUrl}. Set BASE_URL on the server if that's not your public address.`),

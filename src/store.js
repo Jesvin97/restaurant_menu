@@ -62,6 +62,21 @@ class Store {
     seed('3', [[0, 2], [7, 2]], 'closing');
   }
 
+  // ---- logo ------------------------------------------------------------
+  /** Staff-uploaded logo (raster images only, checked by file signature); overrides the brand's bundled one. */
+  setLogo(buf) {
+    const type = buf.length > 12 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
+      : buf.length > 12 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff ? 'image/jpeg'
+        : buf.length > 12 && buf.subarray(0, 4).toString() === 'RIFF' && buf.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : null;
+    if (!type) return { ok: false, status: 415, error: 'Please upload a PNG, JPG or WebP image.' };
+    if (buf.length > 300e3) return { ok: false, status: 413, error: 'Logo is too large (max 300 KB).' };
+    this.state.logo = { type, data: buf.toString('base64'), at: this.now() };
+    this.save();
+    return { ok: true };
+  }
+  clearLogo() { delete this.state.logo; this.save(); return { ok: true }; }
+  get uploadedLogo() { return this.state.logo ? { type: this.state.logo.type, buf: Buffer.from(this.state.logo.data, 'base64'), at: this.state.logo.at } : null; }
+
   // ---- tables ----------------------------------------------------------
   get tableCount() { return Object.keys(this.state.tables).length; }
 

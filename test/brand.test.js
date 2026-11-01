@@ -114,3 +114,64 @@ test('dish tags: parsed from the spreadsheet, unknown labels ignored', () => {
   const r = parseRows(parseCsv('Category,Name,Type,Price,Tags\nA,Soup,Veg,50,"popular, chef-pick"\nA,Plain,Veg,40,\n'));
   assert.deepEqual(r.menu.items.map((i) => i.tags), [['popular', 'chef-pick'], []]);
 });
+
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+const login = async (base) => {
+  const r = await fetch(`${base}/api/admin/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'test-pass-123' }) });
+  return { Authorization: `Bearer ${(await r.json()).token}` };
+};
+
+test('each brand ships a logo file, and the app uses it in place of the initials badge', async () => {
+  for (const id of listBrands()) {
+    const b = loadBrand(id, {});
+    assert.ok(b.logoFile && fs.existsSync(b.logoFile), `${id} has a bundled logo`);
+    assert.equal(b.logoType, 'image/svg+xml');
+  }
+  const srv = createServer(new Store('/dev/null', { persist: false })).listen(0);
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  try {
+    assert.equal((await (await fetch(`${base}/api/info`)).json()).brand.logo, 'file');
+    const r = await fetch(`${base}/brand-logo`);
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('content-type'), 'image/svg+xml');
+    assert.match(r.headers.get('content-security-policy'), /sandbox/);       // opened directly, an image cannot run anything
+    assert.match(await r.text(), /^<svg/);
+  } finally { srv.close(); }
+});
+
+test('staff can upload and remove a logo; only real PNG/JPG/WebP images of sane size are accepted', async () => {
+  const store = new Store('/dev/null', { persist: false });
+  const srv = createServer(store).listen(0);
+  const base = `http://127.0.0.1:${srv.address().port}`;
+  const send = (headers, body, p = '/api/admin/logo') => fetch(base + p, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream', ...headers }, body });
+  try {
+    assert.equal((await send({}, PNG)).status, 401);
+    const A = await login(base);
+    assert.equal((await send(A, 'just text, not an image')).status, 415);
+    assert.equal((await send(A, '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')).status, 415);   // scripts can hide in SVG
+    assert.equal((await send(A, Buffer.concat([PNG.subarray(0, 8), Buffer.alloc(301_000)]))).status, 413);
+    assert.equal((await send(A, PNG)).status, 200);
+    const img = await fetch(`${base}/brand-logo`);
+    assert.equal(img.headers.get('content-type'), 'image/png');
+    assert.deepEqual(Buffer.from(await img.arrayBuffer()), PNG);
+    const v = (await (await fetch(`${base}/api/info`)).json()).brand.logo;
+    assert.match(v, /^\d+$/);                                                // version changes with each upload, so browsers refetch
+    const removed = await fetch(`${base}/api/admin/logo/remove`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...A }, body: '{}' });
+    assert.equal(removed.status, 200);
+    assert.equal((await fetch(`${base}/brand-logo`)).headers.get('content-type'), 'image/svg+xml');   // back to the bundled one
+  } finally { srv.close(); }
+});
+
+test('logo signatures: png, jpeg and webp pass, lookalikes fail', () => {
+  const s = new Store('/dev/null', { persist: false });
+  const pad = Buffer.alloc(20);
+  assert.ok(s.setLogo(Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), pad])).ok);
+  assert.equal(s.uploadedLogo.type, 'image/jpeg');
+  assert.ok(s.setLogo(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), pad])).ok);
+  assert.equal(s.uploadedLogo.type, 'image/webp');
+  assert.equal(s.setLogo(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVE'), pad])).ok, false);
+  assert.equal(s.setLogo(Buffer.from('GIF89a' + 'x'.repeat(30))).ok, false);
+  assert.equal(s.setLogo(Buffer.alloc(5)).ok, false);
+  s.clearLogo();
+  assert.equal(s.uploadedLogo, null);
+});

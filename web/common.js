@@ -30,7 +30,7 @@ async function brandHeader(page, lead) {
   const el = document.getElementById('brand');
   if (!el) return brand;
   el.replaceChildren(
-    h('div', { class: 'brandrow' }, h('div', { class: 'mono', 'aria-hidden': 'true' }, brand.monogram),
+    h('div', { class: 'brandrow' }, brand.logo ? h('img', { class: 'logo', src: `/brand-logo?v=${brand.logo}`, alt: `${brand.name} logo`, width: 46, height: 46 }) : h('div', { class: 'mono', 'aria-hidden': 'true' }, brand.monogram),
       h('div', { class: 'brandtext' }, h('div', { class: 'brandname' }, brand.name), brand.tagline && h('div', { class: 'brandtag' }, brand.tagline))),
     lead && h('p', { class: 'lead' }, lead));
   return brand;

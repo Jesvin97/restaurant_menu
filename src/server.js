@@ -108,6 +108,8 @@ function createServer(store = new Store(), opts = {}) {
     return `${proto === 'https' ? 'https' : 'http'}://${host}`;
   }
 
+  const logoVersion = () => { const up = store.uploadedLogo; return up ? String(up.at) : config.brand.logoFile ? 'file' : null; };
+
   const send = (res, code, body, headers = {}) => {
     const isObj = typeof body === 'object' && !Buffer.isBuffer(body);
     res.writeHead(code, {
@@ -135,7 +137,7 @@ function createServer(store = new Store(), opts = {}) {
 
   async function readBuffer(req, max) {
     let size = 0; const chunks = [];
-    for await (const c of req) { size += c.length; if (size > max) throw Object.assign(new Error('File too large (max 3 MB)'), { status: 413 }); chunks.push(c); }
+    for await (const c of req) { size += c.length; if (size > max) throw Object.assign(new Error(`File too large (max ${max >= 1e6 ? max / 1e6 + ' MB' : Math.round(max / 1e3) + ' KB'})`), { status: 413 }); chunks.push(c); }
     return Buffer.concat(chunks);
   }
 
@@ -183,6 +185,15 @@ function createServer(store = new Store(), opts = {}) {
       if (m[1] === 'counter') return send(res, 200, await qrSvg(`${base}/menu`), { 'Content-Type': 'image/svg+xml' });
       if (!store.table(m[1])) return send(res, 404, { error: 'No such table' });
       return send(res, 200, await qrSvg(`${base}/t/${m[1]}?s=${store.sign(m[1])}`), { 'Content-Type': 'image/svg+xml' });
+    }
+    if (req.method === 'POST' && p === '/api/admin/logo') {
+      if (config.demo) return send(res, 403, { error: 'Disabled in the demo' });
+      return reply(res, store.setLogo(await readBuffer(req, 300e3)));
+    }
+    if (req.method === 'POST' && p === '/api/admin/logo/remove') {
+      if (config.demo) return send(res, 403, { error: 'Disabled in the demo' });
+      await readJson(req);
+      return reply(res, store.clearLogo());
     }
     if (req.method === 'GET' && p === '/api/admin/menu') return send(res, 200, store.adminMenu());
     if (req.method === 'GET' && p === '/api/admin/menu-template.csv') return send(res, 200, TEMPLATE_CSV, { 'Content-Type': 'text/csv; charset=utf-8' });
@@ -261,7 +272,14 @@ function createServer(store = new Store(), opts = {}) {
       if (req.method === 'GET' && p === '/') { res.writeHead(302, { ...SECURITY_HEADERS, Location: config.demo ? '/demo' : '/menu' }); return res.end(); }
       if (req.method === 'GET' && p === '/api/info') {
         const b = config.brand;
-        return send(res, 200, { demo: config.demo, commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null, brand: { id: b.id, name: b.name, tagline: b.tagline, monogram: b.monogram, signoff: b.signoff, accent: b.accent } });
+        return send(res, 200, { demo: config.demo, commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null, brand: { id: b.id, name: b.name, tagline: b.tagline, monogram: b.monogram, signoff: b.signoff, accent: b.accent, logo: logoVersion() } });
+      }
+      if (req.method === 'GET' && p === '/brand-logo') {
+        const up = store.uploadedLogo;
+        const file = !up && config.brand.logoFile;
+        if (!up && !file) return send(res, 404, { error: 'No logo' });
+        // sandbox + nosniff: even a hostile image opened directly cannot run anything.
+        return send(res, 200, up ? up.buf : fs.readFileSync(file), { 'Content-Type': up ? up.type : config.brand.logoType, 'Cache-Control': 'public, max-age=300', 'Content-Security-Policy': 'sandbox; default-src \'none\'' });
       }
       if (req.method === 'GET' && p === '/brand.css') return send(res, 200, brandCss(config.brand), { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
       if (config.demo && p.startsWith('/api/demo/')) {
