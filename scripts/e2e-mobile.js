@@ -74,20 +74,21 @@ async function audit(page, label) {
       const row = guest.locator('.item', { hasText: 'Chicken Dum Biryani' });
       await row.locator('.opt').nth(1).locator('button.add').click();
       await guest.click('button:has-text("Review order")'); await guest.waitForSelector('.sheet'); await audit(guest, `${tag} guest cart sheet`);
-      await guest.click('button:has-text("Send to kitchen")'); await guest.waitForSelector('text=Ordered so far');
+      await guest.click('button:has-text("Send to kitchen")'); await guest.waitForSelector("text=Your table's order");
+      if (await row.locator('.opt').nth(1).locator('button.add').isVisible()) ok('menu steppers reset after the order is sent'); else fail('menu still shows the old quantity after sending');
       if ((await guest.locator('body').innerText()).includes('₹240') && (await guest.locator('#ordered').innerText()).includes('₹')) fail('prices visible in guest order list'); else ok('guest order list shows no prices');
       await audit(guest, `${tag} guest after order`);
 
       await staff.click('button.chip:has-text("Orders")'); await staff.waitForSelector('text=Sent to kitchen'); await audit(staff, `${tag} staff live orders`);
       await staff.click('button:has-text("Sent to kitchen")'); await guest.waitForSelector('text=Being prepared', { timeout: 9000 }); ok('kitchen status reaches the guest');
 
-      await guest.click('button:has-text("Ask for bill")'); await guest.waitForSelector('.sheet'); await audit(guest, `${tag} guest bill sheet`);
+      await guest.click('button:has-text("Ready for the bill?")'); await guest.waitForSelector('.sheet'); await audit(guest, `${tag} guest bill sheet`);
       await guest.fill('input[placeholder="Your name"]', '<b>Asha</b>'); await guest.fill('input[placeholder="Mobile number"]', '98765 43210');
-      await guest.locator('label.chk input').first().check(); await guest.click('.sheet button:has-text("Ask for bill")');
-      await guest.waitForSelector('text=Bill requested'); await audit(guest, `${tag} guest bill requested`);
+      await guest.locator('label.chk input').first().check(); await guest.click('.sheet button:has-text("Bring the bill")');
+      await guest.waitForSelector('text=Your bill is on its way'); await audit(guest, `${tag} guest bill requested`);
       if (await guest.locator('#dock').isVisible()) fail('order dock still visible after the bill was requested'); else ok('dock hidden once the bill is requested');
       await staff.waitForSelector('button:has-text("Generate bill")', { timeout: 9000 }); await staff.click('button:has-text("Generate bill")');
-      await guest.waitForSelector('text=Your bill', { timeout: 9000 }); await audit(guest, `${tag} guest bill`);
+      await guest.waitForSelector('.bill h2:text-is("Your bill")', { timeout: 9000 }); await audit(guest, `${tag} guest bill`);
       if ((await guest.locator('body').innerText()).includes('<b>')) fail('markup in name rendered literally'); else ok('name with markup is inert');
 
       for (const t of ['Tables', 'Menu', 'Guests', 'Setup']) { await staff.click(`button.chip:has-text("${t}")`); await staff.waitForTimeout(700); await audit(staff, `${tag} staff ${t}`); }

@@ -1,0 +1,14 @@
+{
+  "name": "Tiffin Corner",
+  "tagline": "South Indian breakfast and home-style meals, all day",
+  "accent": "#1d5fa8",
+  "accentDark": "#7fb5f0",
+  "paper": "#f5f8fc",
+  "paperDark": "#0e1620",
+  "categories": ["breakfast", "lunch", "desserts", "beverages"],
+  "intros": {
+    "breakfast": "Crisp, soft and served hot, with chutney and sambar.",
+    "beverages": "Filter coffee is made fresh, so give it a minute."
+  },
+  "signoff": "Thank you for visiting. See you for breakfast tomorrow?"
+}

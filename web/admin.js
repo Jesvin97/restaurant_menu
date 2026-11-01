@@ -15,6 +15,7 @@ function beep() {
   } catch { /* audio is blocked until the page has been tapped */ }
 }
 
+brandHeader('Staff', `${greeting()}, team. Here is what is happening in the restaurant right now.`);
 const tools = document.getElementById('tools');
 function paintTools() {
   tools.replaceChildren(...(token ? [h('label', { class: 'snd sub' }, h('input', { type: 'checkbox', checked: sound ? '' : null, onchange: (e) => { sound = e.target.checked; } }), '🔔 sound'),
@@ -53,7 +54,7 @@ async function orders() {
     h('div', { class: 'actions' }, o.status === 'new' ? btn(o, 'kitchen', '✓ Sent to kitchen') : null, o.status !== 'served' ? btn(o, 'served', 'Served') : null));
   const col = (title, st) => {
     const xs = d.orders.filter((o) => o.status === st);
-    return xs.length || st === 'new' ? [h('h2', {}, `${title} (${xs.length})`), h('div', { class: 'grid' }, ...xs.map(card))] : [];
+    return xs.length || (st === 'new' && d.orders.length) ? [h('h2', {}, `${title} (${xs.length})`), h('div', { class: 'grid' }, ...xs.map(card))] : [];
   };
   return [
     ...d.billRequests.map((b) => h('div', { class: 'notice' }, h('span', {}, `🧾 Table ${b.tableId}${b.customer ? ' (' + b.customer + ')' : ''} asked for the bill · ${rupee(b.total)}`),
@@ -62,7 +63,8 @@ async function orders() {
       h('button', { class: 'btn small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: true })) }, 'Yes, bring back'),
       h('button', { class: 'chip small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: false })) }, 'No, keep hidden'))),
     d.waiting.length ? h('div', { class: 'notice' }, h('span', {}, `🔔 Guest waiting at table ${d.waiting.join(', ')}`), h('button', { class: 'btn small', onclick: () => { tab = 'tables'; load(); } }, 'Open tables')) : null,
-    ...col('New — tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served', 'served')];
+    d.orders.length ? null : h('div', { class: 'calm' }, 'All quiet. No orders waiting. A good moment for a cup of chai.'),
+    ...col('New: tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served', 'served')];
 }
 
 async function tables() {
@@ -113,7 +115,7 @@ async function menuTab() {
     h('input', { type: 'checkbox', checked: i.available ? '' : null, onchange: run(() => post('/api/admin/menu/availability', { itemId: i.id, available: !i.available })) }),
     h('span', {}, dot(i.veg), ` ${i.name} `, h('span', { class: 'sub' }, i.options.map((o) => (o.label ? o.label + ' ' : '') + rupee(o.price)).join(' / '))));
   return [h('div', { class: 'card' }, h('h3', {}, 'Upload menu (Excel)'),
-      h('div', { class: 'sub' }, 'Columns: Category, Name, Description, Type (Veg / Non-Veg), Half, Full (or a single Price), Allergens.'),
+      h('div', { class: 'sub' }, 'Columns: Category, Name, Description, Type (Veg / Non-Veg), Half, Full (or a single Price), Allergens, Tags (popular, chef-pick, spicy, new).'),
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/menu-template.csv', 'menu-template.csv') }, '⬇ Download template (opens in Excel)'),
       file, h('button', { class: 'btn narrow', onclick: () => send(false) }, 'Check file'), result),
     h('p', { class: 'sub' }, 'Untick a dish when it runs out — it disappears from guests\' menus straight away. Tomorrow you will be asked whether to bring it back.'),
@@ -132,6 +134,7 @@ async function guests() {
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/customers.csv?for=review', 'review-consented.csv') }, '⬇ Review'),
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/customers.csv', 'all-guests.csv') }, '⬇ All (billing)')),
     d.reviewUrl ? null : h('p', { class: 'err' }, 'Set GOOGLE_REVIEW_URL on the server to enable review links.'),
+    d.customers.length ? null : h('div', { class: 'calm' }, 'No guests yet. Names and numbers appear here when diners choose to share them at the bill.'),
     h('div', { class: 'grid mt12' }, ...d.customers.map((c) => h('div', { class: 'card' },
       h('h3', {}, c.name), h('div', { class: 'sub' }, c.phone), h('div', {}, `${c.visits} visit${c.visits > 1 ? 's' : ''} · ${rupee(c.spent)}`),
       h('div', {}, c.consentReview ? h('span', { class: 'tag' }, 'review') : null, c.consentOffers ? h('span', { class: 'tag' }, 'offers') : null, !c.consentReview && !c.consentOffers ? h('span', { class: 'sub' }, 'bill only') : null),

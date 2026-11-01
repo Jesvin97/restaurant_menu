@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const config = require('./config');
 const { Store } = require('./store');
 const QRCode = require('qrcode');
+const { brandCss } = require('./brand');
 const { parseRows, parseCsv, normalize, TEMPLATE_CSV } = require('./menu');
 
 const PUBLIC = path.join(__dirname, '..', 'web');
@@ -258,7 +259,11 @@ function createServer(store = new Store(), opts = {}) {
       }
 
       if (req.method === 'GET' && p === '/') { res.writeHead(302, { ...SECURITY_HEADERS, Location: config.demo ? '/demo' : '/menu' }); return res.end(); }
-      if (req.method === 'GET' && p === '/api/info') return send(res, 200, { demo: config.demo, commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null });
+      if (req.method === 'GET' && p === '/api/info') {
+        const b = config.brand;
+        return send(res, 200, { demo: config.demo, commit: (process.env.VERCEL_GIT_COMMIT_SHA || '').slice(0, 7) || null, brand: { id: b.id, name: b.name, tagline: b.tagline, monogram: b.monogram, signoff: b.signoff, accent: b.accent } });
+      }
+      if (req.method === 'GET' && p === '/brand.css') return send(res, 200, brandCss(config.brand), { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'public, max-age=300' });
       if (config.demo && p.startsWith('/api/demo/')) {
         // Public on purpose: the demo has no real data. Only available when DEMO_MODE=1.
         if (req.method === 'GET' && p === '/api/demo/info') return send(res, 200, { password: config.demoPassword, tables: Array.from({ length: Math.min(store.tableCount, 4) }, (_, i) => ({ id: i + 1, url: `/t/${i + 1}?s=${store.sign(i + 1)}` })) });
@@ -280,7 +285,10 @@ function createServer(store = new Store(), opts = {}) {
         return serveFile(res, 'table.html');
       }
       if (req.method === 'GET' && p.startsWith('/static/')) return serveFile(res, p.slice(8));
-      if (req.method === 'GET' && p === '/api/menu') return send(res, 200, store.publicMenu());
+      if (req.method === 'GET' && p === '/api/menu') {
+        const menu = store.publicMenu();
+        return send(res, 200, { ...menu, categories: menu.categories.map((c) => ({ ...c, intro: config.brand.intros[c.id] || '' })) });
+      }
 
       // ---- guest table API ----
       if ((m = p.match(/^\/api\/table\/(\d+)\/(enter|join|state|order|bill)$/))) {

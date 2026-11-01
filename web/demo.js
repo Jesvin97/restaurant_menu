@@ -1,3 +1,4 @@
+brandHeader('Demo', 'This is a live demo with sample orders. Nothing here is real.');
 const root = document.getElementById('app');
 const step = (title, hint, ...kids) => h('div', { class: 'card step' }, h('h2', {}, title), h('div', { class: 'sub' }, hint), ...kids);
 const link = (href, text, cls = 'btn') => h('a', { class: cls, href }, text);

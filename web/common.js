@@ -16,6 +16,35 @@ const api = async (path, body, headers = {}) => {
 };
 const dot = (veg) => h('span', { class: 'dot ' + (veg ? 'v' : 'n'), title: veg ? 'Veg' : 'Non-veg' });
 
+// Instance branding comes from the server (BRAND env); fetched once and shared by every page.
+const info = fetch('/api/info').then((r) => r.json()).catch(() => ({ demo: false, brand: { name: 'Menu', tagline: '', monogram: 'M', signoff: 'Thank you for dining with us.' } }));
+const partOfDay = () => { const hr = new Date().getHours(); return hr < 5 ? 'night' : hr < 12 ? 'morning' : hr < 17 ? 'afternoon' : hr < 22 ? 'evening' : 'night'; };
+const greeting = () => ({ morning: 'Good morning', afternoon: 'Good afternoon', evening: 'Good evening', night: 'Hello' })[partOfDay()];
+
+/** Fills <header id="brand"> with the restaurant's monogram, name and tagline, and names the page. */
+async function brandHeader(page, lead) {
+  const { brand } = await info;
+  document.title = `${page} · ${brand.name}`;
+  const tc = document.querySelector('meta[name=theme-color]');
+  if (tc) tc.setAttribute('content', brand.accent);
+  const el = document.getElementById('brand');
+  if (!el) return brand;
+  el.replaceChildren(
+    h('div', { class: 'brandrow' }, h('div', { class: 'mono', 'aria-hidden': 'true' }, brand.monogram),
+      h('div', { class: 'brandtext' }, h('div', { class: 'brandname' }, brand.name), brand.tagline && h('div', { class: 'brandtag' }, brand.tagline))),
+    lead && h('p', { class: 'lead' }, lead));
+  return brand;
+}
+
+/** Small confirmation that fades itself out; polite for screen readers. */
+function toast(msg) {
+  const t = h('div', { class: 'toast', role: 'status' }, msg);
+  document.body.append(t);
+  setTimeout(() => t.remove(), 3800);
+}
+
+const TAG_LABEL = { 'chef-pick': "Chef's pick", popular: 'Popular', spicy: 'Spicy', new: 'New' };
+
 const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: setting just isn't remembered */ } },
@@ -50,8 +79,11 @@ function renderMenu(root, menu, opts = {}) {
     const apply = () => { store.set('allergens', [...st.avoid]); ov.remove(); draw(); };
   };
   const visible = (i) => !(i.allergens || []).some((a) => st.avoid.has(a));
+  let painters = [];
   const drawList = () => {
+    painters = [];
     const q = st.q.trim().toLowerCase();
+    const cat = menu.categories.find((x) => x.id === st.cat);
     let hidden = 0;
     const items = menu.items.filter((i) => (q || i.category === st.cat)
       && (st.diet === 'all' || (st.diet === 'veg') === i.veg)
@@ -59,10 +91,11 @@ function renderMenu(root, menu, opts = {}) {
       && (visible(i) || (hidden++, false)));
     list.replaceChildren(
       ...(st.avoid.size ? [h('p', { class: 'sub note' }, `Hiding dishes with: ${[...st.avoid].map(cap).join(', ')}${hidden ? ` (${hidden} hidden)` : ''}`)] : []),
-      ...(items.length ? items.map(itemRow) : [h('p', { class: 'sub' }, 'No dishes here.')]));
+      ...(!q && cat && cat.intro ? [h('p', { class: 'intro' }, cat.intro)] : []),
+      ...(items.length ? items.map(itemRow) : [h('p', { class: 'sub' }, st.avoid.size ? 'Nothing here matches your allergy choices. Our team is happy to suggest something.' : 'Nothing here yet.')]));
   };
   const itemRow = (i) => h('div', { class: 'item' }, dot(i.veg),
-    h('div', { class: 'info' }, h('div', { class: 'name' }, i.name), i.description && h('div', { class: 'desc' }, i.description),
+    h('div', { class: 'info' }, h('div', { class: 'name' }, i.name, ...(i.tags || []).map((t) => h('span', { class: 'badge ' + t }, TAG_LABEL[t] || t))), i.description && h('div', { class: 'desc' }, i.description),
       ...(i.options.length > 1 ? i.options.map((o) => h('div', { class: 'opt' }, h('span', {}, `${o.label} · ${rupee(o.price)}`), opts.cart && qtyControl(i, o))) : [h('div', { class: 'price' }, rupee(i.options[0].price))])),
     opts.cart && i.options.length === 1 && qtyControl(i, i.options[0]));
   const qtyControl = (i, o) => {
@@ -74,15 +107,18 @@ function renderMenu(root, menu, opts = {}) {
         : [h('button', { class: 'add', onclick: () => set(1) }, 'ADD')]));
     };
     paint();
+    painters.push(paint);
     return box;
   };
   bar.append(top, cats);
   root.replaceChildren(bar, h('div', { class: 'searchrow' }, search), list);
   draw();
+  // Lets the caller refresh the +/- controls after it changes the cart elsewhere (review sheet, after sending).
+  return { repaint: () => painters.forEach((p) => p()) };
 }
 
 // Demo builds show a banner on every page so nobody mistakes the sandbox for a real restaurant.
-api('/api/info').then((i) => {
+info.then((i) => {
   if (!i.demo) return;
-  document.body.prepend(h('div', { class: 'demo-banner' }, 'Demo — nothing here is real. Please don\'t enter a real phone number. ', h('a', { href: '/demo' }, 'Demo home')));
-}).catch(() => {});
+  document.body.prepend(h('div', { class: 'demo-banner' }, 'Demo: nothing here is real. Please don\'t enter a real phone number. ', h('a', { href: '/demo' }, 'Demo home')));
+});

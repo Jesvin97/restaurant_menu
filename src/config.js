@@ -1,6 +1,8 @@
 const path = require('path');
 const crypto = require('crypto');
 
+const { loadBrand } = require('./brand');
+
 const num = (v, d) => (v !== undefined && v !== '' && !Number.isNaN(Number(v)) ? Number(v) : d);
 
 // With several serverless instances, per-instance random secrets would make sign-in and table QR links
@@ -37,7 +39,8 @@ module.exports = {
   stateFile: process.env.STATE_FILE || (process.env.VERCEL ? '/tmp/state.json' : path.join(__dirname, '..', 'data', 'state.json')),
   timezone: process.env.TZ_NAME || 'Asia/Kolkata',
   googleReviewUrl: process.env.GOOGLE_REVIEW_URL || '',
-  restaurantName: process.env.RESTAURANT_NAME || 'our restaurant',
+  brand: loadBrand(),
+  restaurantName: loadBrand().name,
   requireContact: process.env.REQUIRE_CONTACT === '1',
   cookieSecure: process.env.COOKIE_SECURE === '1',
 };

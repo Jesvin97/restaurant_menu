@@ -1,0 +1,14 @@
+{
+  "name": "The Biryani House",
+  "tagline": "Slow-cooked dum biryani and tandoor grills",
+  "accent": "#0f6b4f",
+  "accentDark": "#5fd0a5",
+  "paper": "#f4faf6",
+  "paperDark": "#0f1a15",
+  "categories": ["biryani", "breads", "grills", "desserts", "beverages"],
+  "intros": {
+    "biryani": "Sealed with dough and opened at the last minute, so the steam reaches you first.",
+    "grills": "From the tandoor, still smoking."
+  },
+  "signoff": "Thank you for sharing a table with us."
+}
