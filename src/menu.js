@@ -5,6 +5,11 @@ const slug = (s) => String(s).toLowerCase().replace(/&/g, ' and ').replace(/[^a-
 // eslint-disable-next-line no-control-regex -- stripping control characters is the point
 const clean = (s, n) => String(s ?? '').replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
 
+const TAGS = ['chef-pick', 'popular', 'spicy', 'new'];
+function parseTags(v) {
+  return [...new Set(String(v ?? '').toLowerCase().split(/[,;/|]+/).map((t) => t.trim().replace(/[\s_]+/g, '-').replace(/^chefs?-pick$/, 'chef-pick')).filter((t) => TAGS.includes(t)))];
+}
+
 function parseAllergens(v) {
   return [...new Set(String(v ?? '').toLowerCase().split(/[,;/|]+/).map((a) => a.trim().replace(/\s+/g, '-')).filter((a) => a && !['none', 'no', 'nil', 'na', 'n/a', '-'].includes(a)))].slice(0, 12);
 }
@@ -19,6 +24,7 @@ function normalize(raw) {
     return {
       id, category: i.category, name: i.name, description: i.description || '', veg: !!i.veg,
       allergens: i.allergens || [],
+      tags: i.tags || [],
       options: i.options || [{ id: 'regular', label: '', price: i.price }],
     };
   });
@@ -34,6 +40,7 @@ const HEADERS = {
   full: ['full', 'full price', 'full plate'],
   price: ['price', 'rate', 'amount', 'mrp'],
   allergens: ['allergens', 'allergen', 'allergy', 'allergies', 'contains'],
+  tags: ['tags', 'tag', 'label', 'labels', 'badge'],
 };
 
 const toNum = (v) => {
@@ -79,7 +86,7 @@ function parseRows(rows) {
     let id = slug(name);
     for (let n = 2; used.has(id); n++) id = `${slug(name)}-${n}`;
     used.add(id);
-    items.push({ id, category: cid, name, description: clean(cell('description'), 200), veg, allergens: parseAllergens(cell('allergens')), options });
+    items.push({ id, category: cid, name, description: clean(cell('description'), 200), veg, allergens: parseAllergens(cell('allergens')), tags: parseTags(cell('tags')), options });
   }
   if (!items.length && !errors.length) errors.push('No dishes found in the file');
   if (items.length > 1000) errors.push('Too many dishes (max 1000)');
@@ -103,10 +110,10 @@ function parseCsv(text) {
 }
 
 const TEMPLATE_CSV = [
-  'Category,Name,Description,Type,Half,Full,Allergens',
-  'Biryani,Chicken Dum Biryani,Slow-cooked with raita,Non-Veg,160,240,dairy',
-  'Breads,Butter Naan,,Veg,,40,"gluten, dairy"',
-  'Starters,Paneer Tikka,Char-grilled paneer,Veg,,210,dairy',
+  'Category,Name,Description,Type,Half,Full,Allergens,Tags',
+  'Biryani,Chicken Dum Biryani,Slow-cooked with raita,Non-Veg,160,240,dairy,popular',
+  'Breads,Butter Naan,,Veg,,40,"gluten, dairy",',
+  'Starters,Paneer Tikka,Char-grilled paneer,Veg,,210,dairy,"chef-pick, spicy"',
 ].join('\n') + '\n';
 
-module.exports = { slug, normalize, parseRows, parseCsv, parseAllergens, TEMPLATE_CSV };
+module.exports = { slug, normalize, parseRows, parseCsv, parseAllergens, parseTags, TEMPLATE_CSV };

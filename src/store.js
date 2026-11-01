@@ -2,7 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const config = require('./config');
-const defaultMenu = require('./menu.json');
+const { brandMenu } = require('./brand');
+const defaultMenu = brandMenu(require('./menu.json'), config.brand);
 const sha = (s) => crypto.createHash('sha256').update(String(s)).digest('hex');
 const rid = (n = 8) => crypto.randomBytes(n).toString('hex');
 
@@ -42,19 +43,39 @@ class Store {
   seedDemo() {
     for (const t of Object.values(this.state.tables)) { t.session = null; t.pending = []; }
     this.state.customers = {}; this.state.history = []; this.state.unavailable = {};
-    this.setMenu(require('./menu.json'), false);
+    this.setMenu(defaultMenu, false);
     this.state.menu = null;
-    const seed = (id, lines, status) => {
+    // Sample orders use whatever this brand actually serves, so every instance's demo has live-looking tables.
+    const dishes = defaultMenu.items;
+    const seed = (id, picks, status) => {
       const t = this.table(id);
-      if (!t) return;
+      if (!t || !dishes.length) return;
       this._open(t, sha(`demo-seed-${id}`));
-      for (const [dish, opt, qty] of lines) this.placeOrder(id, `demo-seed-${id}`, [{ id: dish, opt, qty }]);
+      for (const [n, qty] of picks) {
+        const d = dishes[n % dishes.length];
+        this.placeOrder(id, `demo-seed-${id}`, [{ id: d.id, opt: d.options[d.options.length - 1].id, qty }]);
+      }
       if (status === 'closing') this.requestBill(id, `demo-seed-${id}`);
       if (status === 'kitchen') t.session.orders.forEach((o) => { o.status = 'kitchen'; });
     };
-    seed('2', [['paneer-tikka', 'regular', 1], ['butter-naan', 'regular', 3]], 'kitchen');
-    seed('3', [['chicken-dum-biryani', 'full', 2], ['masala-chai', 'regular', 2]], 'closing');
+    seed('2', [[2, 1], [5, 2]], 'kitchen');
+    seed('3', [[0, 2], [7, 2]], 'closing');
   }
+
+  // ---- logo ------------------------------------------------------------
+  /** Staff-uploaded logo (raster images only, checked by file signature); overrides the brand's bundled one. */
+  setLogo(buf) {
+    const type = buf.length > 12 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? 'image/png'
+      : buf.length > 12 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff ? 'image/jpeg'
+        : buf.length > 12 && buf.subarray(0, 4).toString() === 'RIFF' && buf.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : null;
+    if (!type) return { ok: false, status: 415, error: 'Please upload a PNG, JPG or WebP image.' };
+    if (buf.length > 300e3) return { ok: false, status: 413, error: 'Logo is too large (max 300 KB).' };
+    this.state.logo = { type, data: buf.toString('base64'), at: this.now() };
+    this.save();
+    return { ok: true };
+  }
+  clearLogo() { delete this.state.logo; this.save(); return { ok: true }; }
+  get uploadedLogo() { return this.state.logo ? { type: this.state.logo.type, buf: Buffer.from(this.state.logo.data, 'base64'), at: this.state.logo.at } : null; }
 
   // ---- tables ----------------------------------------------------------
   get tableCount() { return Object.keys(this.state.tables).length; }

@@ -7,7 +7,7 @@ module.exports = [
   {
     files: ['web/**'],
     ignores: ['web/common.js'],
-    languageOptions: { sourceType: 'script', globals: { ...globals.browser, h: 'readonly', rupee: 'readonly', api: 'readonly', dot: 'readonly', renderMenu: 'readonly', sheet: 'readonly', store: 'readonly', cap: 'readonly' } },
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser, h: 'readonly', rupee: 'readonly', api: 'readonly', dot: 'readonly', renderMenu: 'readonly', sheet: 'readonly', store: 'readonly', cap: 'readonly', info: 'readonly', brandHeader: 'readonly', greeting: 'readonly', toast: 'readonly', partOfDay: 'readonly', TAG_LABEL: 'readonly' } },
     rules: { 'no-unused-vars': ['error', { vars: 'local', caughtErrors: 'none' }] },
   },
   { files: ['web/common.js'], languageOptions: { sourceType: 'script', globals: globals.browser }, rules: { 'no-unused-vars': 'off' } },

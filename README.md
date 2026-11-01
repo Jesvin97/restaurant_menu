@@ -36,6 +36,16 @@ npm run e2e      # real-browser phone-size run (needs Playwright); SHOTS=dir sav
 - **Excel upload:** columns `Category, Name, Description, Type (Veg/Non-Veg), Half, Full` (or a single `Price`), `Allergens` (comma separated, e.g. `dairy, gluten`). *Check file* previews and reports row-level errors; *Replace my menu* applies it. A CSV template is downloadable. On a normal server the imported menu is saved in the state file.
 - **Allergy filter:** guests tap *Allergies*, choose what to avoid, and dishes whose Allergens column lists it are hidden (remembered on their phone). It relies on the kitchen's data, and the UI says so.
 
+## Several restaurants from one repo
+
+The app is branded by a small profile in `brands/<name>.json` (name, tagline, colours, which menu sections it serves, section intros, sign-off line). Each *instance* is the same code deployed as its own hosting project, with `BRAND` set to one profile, so it gets its own look, menu, tables, staff password and QR codes. Three examples ship: `spice-route` (full menu), `biryani-house` and `tiffin-corner`. The names are placeholders; edit the JSON or copy one to make your own.
+
+```bash
+npm run instance -- biryani-house     # prints BRAND, a fresh ADMIN_PASSWORD and QR_SECRET to paste into that project
+```
+
+Every instance needs its own `ADMIN_PASSWORD` and `QR_SECRET`. `RESTAURANT_NAME` overrides the profile's name. Upload an Excel menu in *Staff -> Menu* to replace a brand's default dishes. The spreadsheet can also carry a `Tags` column (`popular`, `chef-pick`, `spicy`, `new`) that shows small badges on dishes.
+
 ## Demo mode
 
 `DEMO_MODE=1 npm start` (or just add `DEMO_MODE=1` as the only environment variable on Vercel) turns the app into a shareable sandbox. The home page `/` becomes a demo page with one-tap entry points: pick a table as a guest, open the staff dashboard already signed in, scan table/counter QR codes from the screen, and *Reset demo*.

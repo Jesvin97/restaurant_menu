@@ -15,6 +15,7 @@ function beep() {
   } catch { /* audio is blocked until the page has been tapped */ }
 }
 
+brandHeader('Staff', `${greeting()}, team. Here is what is happening in the restaurant right now.`);
 const tools = document.getElementById('tools');
 function paintTools() {
   tools.replaceChildren(...(token ? [h('label', { class: 'snd sub' }, h('input', { type: 'checkbox', checked: sound ? '' : null, onchange: (e) => { sound = e.target.checked; } }), '🔔 sound'),
@@ -25,12 +26,14 @@ function login(msg) {
   clearInterval(timer);
   paintTools();
   const err = h('div', { class: 'err', role: 'alert' }, msg || '');
+  const hint = h('p', { class: 'sub' });
   const inp = h('input', { type: 'password', placeholder: 'Staff password', autocomplete: 'current-password', 'aria-label': 'Staff password' });
   const go = async () => {
     try { stash((await api('/api/admin/login', { password: inp.value })).token); start(); } catch (e) { err.textContent = e.message; }
   };
   inp.addEventListener('keydown', (e) => e.key === 'Enter' && go());
-  app.replaceChildren(h('div', { class: 'msg' }, h('h2', {}, 'Sign in'), inp, err, h('button', { class: 'btn narrow mt12', onclick: go }, 'Sign in')));
+  info.then((i) => { if (i.demo) hint.textContent = 'This is the demo. The staff password is: demo'; });
+  app.replaceChildren(h('div', { class: 'msg' }, h('h2', {}, 'Staff sign in'), h('p', { class: 'sub' }, 'Enter the staff password you were given.'), inp, hint, err, h('button', { class: 'btn narrow mt12', onclick: go }, 'Sign in')));
 }
 
 const run = (fn) => async () => { try { await fn(); } catch (e) { alert(e.message); } load(); };
@@ -53,7 +56,7 @@ async function orders() {
     h('div', { class: 'actions' }, o.status === 'new' ? btn(o, 'kitchen', '✓ Sent to kitchen') : null, o.status !== 'served' ? btn(o, 'served', 'Served') : null));
   const col = (title, st) => {
     const xs = d.orders.filter((o) => o.status === st);
-    return xs.length || st === 'new' ? [h('h2', {}, `${title} (${xs.length})`), h('div', { class: 'grid' }, ...xs.map(card))] : [];
+    return xs.length || (st === 'new' && d.orders.length) ? [h('h2', {}, `${title} (${xs.length})`), h('div', { class: 'grid' }, ...xs.map(card))] : [];
   };
   return [
     ...d.billRequests.map((b) => h('div', { class: 'notice' }, h('span', {}, `🧾 Table ${b.tableId}${b.customer ? ' (' + b.customer + ')' : ''} asked for the bill · ${rupee(b.total)}`),
@@ -62,7 +65,8 @@ async function orders() {
       h('button', { class: 'btn small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: true })) }, 'Yes, bring back'),
       h('button', { class: 'chip small', onclick: run(() => post('/api/admin/menu/restock', { itemId: r.itemId, bringBack: false })) }, 'No, keep hidden'))),
     d.waiting.length ? h('div', { class: 'notice' }, h('span', {}, `🔔 Guest waiting at table ${d.waiting.join(', ')}`), h('button', { class: 'btn small', onclick: () => { tab = 'tables'; load(); } }, 'Open tables')) : null,
-    ...col('New — tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served', 'served')];
+    d.orders.length ? null : h('div', { class: 'calm' }, 'All quiet. No orders waiting. A good moment for a cup of chai.'),
+    ...col('New: tell the kitchen', 'new'), ...col('In kitchen', 'kitchen'), ...col('Served', 'served')];
 }
 
 async function tables() {
@@ -113,7 +117,7 @@ async function menuTab() {
     h('input', { type: 'checkbox', checked: i.available ? '' : null, onchange: run(() => post('/api/admin/menu/availability', { itemId: i.id, available: !i.available })) }),
     h('span', {}, dot(i.veg), ` ${i.name} `, h('span', { class: 'sub' }, i.options.map((o) => (o.label ? o.label + ' ' : '') + rupee(o.price)).join(' / '))));
   return [h('div', { class: 'card' }, h('h3', {}, 'Upload menu (Excel)'),
-      h('div', { class: 'sub' }, 'Columns: Category, Name, Description, Type (Veg / Non-Veg), Half, Full (or a single Price), Allergens.'),
+      h('div', { class: 'sub' }, 'Columns: Category, Name, Description, Type (Veg / Non-Veg), Half, Full (or a single Price), Allergens, Tags (popular, chef-pick, spicy, new).'),
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/menu-template.csv', 'menu-template.csv') }, '⬇ Download template (opens in Excel)'),
       file, h('button', { class: 'btn narrow', onclick: () => send(false) }, 'Check file'), result),
     h('p', { class: 'sub' }, 'Untick a dish when it runs out — it disappears from guests\' menus straight away. Tomorrow you will be asked whether to bring it back.'),
@@ -132,6 +136,7 @@ async function guests() {
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/customers.csv?for=review', 'review-consented.csv') }, '⬇ Review'),
       h('button', { class: 'chip', onclick: () => downloadCsv('/api/admin/customers.csv', 'all-guests.csv') }, '⬇ All (billing)')),
     d.reviewUrl ? null : h('p', { class: 'err' }, 'Set GOOGLE_REVIEW_URL on the server to enable review links.'),
+    d.customers.length ? null : h('div', { class: 'calm' }, 'No guests yet. Names and numbers appear here when diners choose to share them at the bill.'),
     h('div', { class: 'grid mt12' }, ...d.customers.map((c) => h('div', { class: 'card' },
       h('h3', {}, c.name), h('div', { class: 'sub' }, c.phone), h('div', {}, `${c.visits} visit${c.visits > 1 ? 's' : ''} · ${rupee(c.spent)}`),
       h('div', {}, c.consentReview ? h('span', { class: 'tag' }, 'review') : null, c.consentOffers ? h('span', { class: 'tag' }, 'offers') : null, !c.consentReview && !c.consentOffers ? h('span', { class: 'sub' }, 'bill only') : null),
@@ -161,7 +166,24 @@ async function setup() {
     check(!s.secretChangedAt, s.secretChangedAt ? `The QR secret changed on ${new Date(s.secretChangedAt).toLocaleDateString()}. QR codes printed before then no longer work.` : `Secret fingerprint ${s.fingerprint} — if this ever changes, printed codes break.`),
     check(s.hostKind === 'custom' || (s.baseUrlSet && s.hostKind !== 'local'), s.hostKind === 'local' ? `Codes point to ${s.baseUrl}, which only works on your own network. Use your public address.` : s.hostKind === 'vercel' && !s.baseUrlSet ? `Codes point to ${s.baseUrl}. A temporary address is fine for testing, but print only after you have a permanent domain (set BASE_URL) — the address is baked into every code.` : `Codes point to ${s.baseUrl}. Keep this address working for as long as the prints are in use.`),
     check(s.persisted, s.persisted ? 'Server can save its data.' : 'Server cannot save data, so orders and settings reset on restart (printed QR codes still work).'));
-  return [health, h('div', { class: 'card mt8' }, h('h3', {}, 'Number of tables'),
+  const brandInfo = await info;
+  const logoFile = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', class: 'file', 'aria-label': 'Logo file' });
+  const logoMsg = h('div', { class: 'sub' });
+  const sendLogo = async () => {
+    const f = logoFile.files[0];
+    if (!f) { logoMsg.textContent = 'Choose a PNG, JPG or WebP image first.'; return; }
+    const r = await fetch('/api/admin/logo', { method: 'POST', headers: { ...auth(), 'Content-Type': 'application/octet-stream' }, body: f });
+    const j = await r.json();
+    if (!r.ok) { logoMsg.textContent = j.error; logoMsg.className = 'err'; return; }
+    location.reload();
+  };
+  const logoCard = h('div', { class: 'card mt8' }, h('h3', {}, 'Logo'),
+    brandInfo.brand.logo ? h('img', { class: 'logoprev', src: `/brand-logo?v=${brandInfo.brand.logo}`, alt: 'Current logo' }) : h('div', { class: 'sub' }, `No logo yet. Guests see the "${brandInfo.brand.monogram}" badge.`),
+    h('div', { class: 'sub' }, 'PNG, JPG or WebP, up to 300 KB. A square or wide image on a transparent or white background works best. It appears at the top of every guest and staff page.'),
+    logoFile, h('div', { class: 'row wrap' }, h('button', { class: 'btn small', onclick: sendLogo }, 'Upload logo'),
+      brandInfo.brand.logo ? h('button', { class: 'chip small', onclick: async () => { await post('/api/admin/logo/remove'); location.reload(); } }, 'Remove uploaded logo') : null), logoMsg,
+    h('div', { class: 'sub' }, 'On a host that restarts often (such as a free Vercel plan) an uploaded logo can disappear. To make it permanent, save the image as brands/logos/<brand>.png in the code.'));
+  return [health, logoCard, h('div', { class: 'card mt8' }, h('h3', {}, 'Number of tables'),
       h('div', { class: 'stepper' }, h('button', { class: 'add', 'aria-label': 'Fewer tables', onclick: bump(-1) }, '−'), count, h('button', { class: 'add', 'aria-label': 'More tables', onclick: bump(1) }, '+'), save),
       h('div', { class: 'sub' }, 'Adding tables is instant. Removing only works for free tables, from the highest number down. New tables need their QR printed below.')),
     h('h2', {}, 'QR codes'), h('div', { class: 'sub' }, `Links point to ${s.baseUrl}. Set BASE_URL on the server if that's not your public address.`),

@@ -47,7 +47,8 @@
           "label": "",
           "price": 60
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "masala-dosa",
@@ -62,6 +63,9 @@
           "label": "",
           "price": 90
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -80,7 +84,8 @@
           "label": "",
           "price": 80
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "aloo-paratha",
@@ -98,7 +103,8 @@
           "label": "",
           "price": 85
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "egg-omelette",
@@ -115,7 +121,8 @@
           "label": "",
           "price": 70
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "egg-bhurji-pav",
@@ -133,6 +140,9 @@
           "label": "",
           "price": 90
         }
+      ],
+      "tags": [
+        "spicy"
       ]
     },
     {
@@ -151,7 +161,8 @@
           "label": "",
           "price": 160
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "chicken-thali",
@@ -169,7 +180,8 @@
           "label": "",
           "price": 220
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "dal-tadka-and-rice",
@@ -186,7 +198,8 @@
           "label": "",
           "price": 130
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "paneer-butter-masala",
@@ -208,6 +221,9 @@
           "label": "Full",
           "price": 190
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -230,6 +246,9 @@
           "label": "Full",
           "price": 250
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -247,7 +266,8 @@
           "label": "",
           "price": 230
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "veg-biryani",
@@ -269,7 +289,8 @@
           "label": "Full",
           "price": 170
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "paneer-biryani",
@@ -291,7 +312,8 @@
           "label": "Full",
           "price": 200
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "chicken-dum-biryani",
@@ -313,6 +335,9 @@
           "label": "Full",
           "price": 240
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -335,6 +360,9 @@
           "label": "Full",
           "price": 320
         }
+      ],
+      "tags": [
+        "chef-pick"
       ]
     },
     {
@@ -353,7 +381,8 @@
           "label": "",
           "price": 180
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "tandoori-roti",
@@ -368,7 +397,8 @@
           "label": "",
           "price": 20
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "butter-naan",
@@ -386,6 +416,9 @@
           "label": "",
           "price": 40
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -404,7 +437,8 @@
           "label": "",
           "price": 55
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "laccha-paratha",
@@ -422,7 +456,8 @@
           "label": "",
           "price": 45
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "cheese-kulcha",
@@ -440,7 +475,8 @@
           "label": "",
           "price": 75
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "keema-naan",
@@ -458,7 +494,8 @@
           "label": "",
           "price": 90
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "paneer-tikka",
@@ -475,6 +512,9 @@
           "label": "",
           "price": 210
         }
+      ],
+      "tags": [
+        "chef-pick"
       ]
     },
     {
@@ -490,7 +530,8 @@
           "label": "",
           "price": 170
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "chicken-tikka",
@@ -505,7 +546,8 @@
           "label": "",
           "price": 260
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "tandoori-chicken-half",
@@ -520,7 +562,8 @@
           "label": "",
           "price": 280
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "seekh-kebab",
@@ -535,6 +578,9 @@
           "label": "",
           "price": 290
         }
+      ],
+      "tags": [
+        "chef-pick"
       ]
     },
     {
@@ -552,7 +598,8 @@
           "label": "",
           "price": 310
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "veg-hakka-noodles",
@@ -570,7 +617,8 @@
           "label": "",
           "price": 150
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "veg-manchurian-gravy",
@@ -593,7 +641,8 @@
           "label": "Full",
           "price": 160
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "chilli-paneer",
@@ -616,6 +665,9 @@
           "label": "Full",
           "price": 190
         }
+      ],
+      "tags": [
+        "spicy"
       ]
     },
     {
@@ -633,7 +685,8 @@
           "label": "",
           "price": 190
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "chicken-schezwan-noodles",
@@ -651,6 +704,9 @@
           "label": "",
           "price": 200
         }
+      ],
+      "tags": [
+        "spicy"
       ]
     },
     {
@@ -673,6 +729,9 @@
           "label": "Full",
           "price": 230
         }
+      ],
+      "tags": [
+        "spicy"
       ]
     },
     {
@@ -690,7 +749,8 @@
           "label": "",
           "price": 60
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "ice-cream-scoop",
@@ -707,7 +767,8 @@
           "label": "",
           "price": 70
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "phirni",
@@ -725,7 +786,8 @@
           "label": "",
           "price": 80
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "brownie-with-ice-cream",
@@ -745,6 +807,9 @@
           "label": "",
           "price": 140
         }
+      ],
+      "tags": [
+        "new"
       ]
     },
     {
@@ -762,6 +827,9 @@
           "label": "",
           "price": 25
         }
+      ],
+      "tags": [
+        "popular"
       ]
     },
     {
@@ -779,6 +847,9 @@
           "label": "",
           "price": 35
         }
+      ],
+      "tags": [
+        "chef-pick"
       ]
     },
     {
@@ -794,7 +865,8 @@
           "label": "",
           "price": 50
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "mango-lassi",
@@ -811,7 +883,8 @@
           "label": "",
           "price": 80
         }
-      ]
+      ],
+      "tags": []
     },
     {
       "id": "cold-coffee",
@@ -828,7 +901,8 @@
           "label": "",
           "price": 90
         }
-      ]
+      ],
+      "tags": []
     }
   ]
 }
